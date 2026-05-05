@@ -2,6 +2,8 @@ import { Link, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { pyqData } from "../data/pyqData";
 
+const API_URL = "https://sem-mate-pyq.onrender.com";
+
 function Subject() {
   const { semesterName, subjectName } = useParams();
 
@@ -28,7 +30,14 @@ function Subject() {
   }, [storageKey]);
 
   if (!subject) {
-    return <div className="app electric-bg">Subject not found.</div>;
+    return (
+      <div className="app electric-bg page-shell">
+        <h1>Subject not found.</h1>
+        <Link to="/" className="back">
+          ← Back Home
+        </Link>
+      </div>
+    );
   }
 
   const isPaidSubject = subject.name === "Digital Signal Processing";
@@ -58,7 +67,7 @@ function Subject() {
       setIsPaying(true);
       setMessage("Creating payment order...");
 
-      const orderResponse = await fetch("http://localhost:5000/api/create-order", {
+      const orderResponse = await fetch(`${API_URL}/api/create-order`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -91,19 +100,16 @@ function Subject() {
           try {
             setMessage("Payment done. Verifying...");
 
-            const verifyResponse = await fetch(
-              "http://localhost:5000/api/verify-payment",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  ...response,
-                  subjectName: subject.name,
-                }),
-              }
-            );
+            const verifyResponse = await fetch(`${API_URL}/api/verify-payment`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                ...response,
+                subjectName: subject.name,
+              }),
+            });
 
             const verifyData = await verifyResponse.json();
 
@@ -150,8 +156,6 @@ function Subject() {
       setIsPaying(false);
     }
   }
-
- 
 
   return (
     <div className="app electric-bg page-shell">
@@ -214,10 +218,10 @@ function Subject() {
       )}
 
       {isPaidSubject && isUnlocked && (
-  <section className="payment-success-panel">
-    <p>✅ DSP unlocked. You can now view all PDFs.</p>
-  </section>
-)}
+        <section className="payment-success-panel">
+          <p>✅ DSP unlocked. You can now view all PDFs.</p>
+        </section>
+      )}
 
       <section className="paper-list">
         {subject.papers.map((paper, index) => {
@@ -225,8 +229,10 @@ function Subject() {
 
           return (
             <div
-              className={`paper-card electric-card ${locked ? "locked-paper" : ""}`}
-              key={paper.title}
+              className={`paper-card electric-card ${
+                locked ? "locked-paper" : ""
+              }`}
+              key={`${paper.title}-${index}`}
             >
               <div>
                 <h3>
