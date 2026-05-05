@@ -1,6 +1,8 @@
+import LatestUpdates from "../components/LatestUpdates";
 import Footer from "../components/Footer";
 import { Link } from "react-router-dom";
 import { pyqData } from "../data/pyqData";
+
 
 function Home() {
   return (
@@ -16,10 +18,13 @@ function Home() {
       </header>
 
       <section className="hero glass-panel">
-        <h2>Choose Your Semester</h2>
-        <p>Select a semester and access subject-wise solved PDFs.</p>
-      </section>
+  <h2>Choose Your Semester</h2>
+  <p>Select a semester and access subject-wise solved PDFs.</p>
+</section>
 
+<LatestUpdates />
+
+<section className="grid semester-grid">
       <section className="grid semester-grid">
         {pyqData.map((sem) => (
           <Link
