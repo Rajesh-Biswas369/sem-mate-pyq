@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { pyqData } from "../data/pyqData";
-import LatestUpdates from "../components/LatestUpdates";
+import LatestUpdates from "../components/LatestUpdates.jsx";
 import Footer from "../components/Footer";
 
 function Home() {
