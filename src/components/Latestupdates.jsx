@@ -1,4 +1,4 @@
-import { updatesData } from "../data/updatesData";
+import { updatesData } from "../data/updatesdata";
 
 function LatestUpdates() {
   return (
