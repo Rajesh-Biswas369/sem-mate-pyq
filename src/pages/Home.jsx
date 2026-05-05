@@ -1,3 +1,4 @@
+import Footer from "../components/Footer";
 import { Link } from "react-router-dom";
 import { pyqData } from "../data/pyqData";
 
@@ -32,6 +33,7 @@ function Home() {
           </Link>
         ))}
       </section>
+      <Footer />
     </div>
   );
 }

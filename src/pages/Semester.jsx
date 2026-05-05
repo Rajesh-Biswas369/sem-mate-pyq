@@ -1,3 +1,4 @@
+import Footer from "../components/Footer";
 import { Link, useParams } from "react-router-dom";
 import { pyqData } from "../data/pyqData";
 
@@ -43,6 +44,7 @@ function Semester() {
           </Link>
         ))}
       </section>
+      <Footer />
     </div>
   );
 }

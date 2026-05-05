@@ -1,3 +1,4 @@
+import Footer from "../components/Footer";
 import { Link, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { pyqData } from "../data/pyqData";
@@ -281,6 +282,7 @@ const storageKey = `paid_${loggedInEmail}_${decodedSemester}_${decodedSubject}`
           );
         })}
       </section>
+      <Footer />
     </div>
   );
 }
