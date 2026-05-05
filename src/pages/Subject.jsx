@@ -1,8 +1,15 @@
 import { Link, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { pyqData } from "../data/pyqData";
+import { auth } from "../firebase";
 
 const API_URL = "https://sem-mate-pyq.onrender.com";
+
+// Your owner/admin Gmail IDs.
+// Add more emails here if you want to give free access to someone.
+const ADMIN_EMAILS = [
+  "maxjoy146@gmail.com"
+];
 
 function Subject() {
   const { semesterName, subjectName } = useParams();
@@ -13,7 +20,11 @@ function Subject() {
   const semester = pyqData.find((item) => item.semester === decodedSemester);
   const subject = semester?.subjects.find((item) => item.name === decodedSubject);
 
-  const storageKey = `paid_${decodedSemester}_${decodedSubject}`;
+  const loggedInEmail = auth.currentUser?.email || "guest";
+
+const storageKey = `paid_${loggedInEmail}_${decodedSemester}_${decodedSubject}`
+  .replace(/\s+/g, "_")
+  .toLowerCase();
 
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [couponCode, setCouponCode] = useState("");
@@ -40,7 +51,13 @@ function Subject() {
     );
   }
 
+
+  const isAdmin = ADMIN_EMAILS.includes(loggedInEmail);
+
   const isPaidSubject = subject.name === "Digital Signal Processing";
+
+  // Final access rule
+  const hasAccess = !isPaidSubject || isUnlocked || isAdmin;
 
   function applyCoupon() {
     const typedCoupon = couponCode.trim().toUpperCase();
@@ -70,12 +87,12 @@ function Subject() {
       const orderResponse = await fetch(`${API_URL}/api/create-order`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           subjectName: subject.name,
-          couponCode,
-        }),
+          couponCode
+        })
       });
 
       const orderData = await orderResponse.json();
@@ -103,12 +120,12 @@ function Subject() {
             const verifyResponse = await fetch(`${API_URL}/api/verify-payment`, {
               method: "POST",
               headers: {
-                "Content-Type": "application/json",
+                "Content-Type": "application/json"
               },
               body: JSON.stringify({
                 ...response,
-                subjectName: subject.name,
-              }),
+                subjectName: subject.name
+              })
             });
 
             const verifyData = await verifyResponse.json();
@@ -131,21 +148,21 @@ function Subject() {
         },
 
         prefill: {
-          name: "Student",
-          email: "student@example.com",
-          contact: "9999999999",
+          name: auth.currentUser?.displayName || "Student",
+          email: auth.currentUser?.email || "student@example.com",
+          contact: "9999999999"
         },
 
         theme: {
-          color: "#facc15",
+          color: "#facc15"
         },
 
         modal: {
           ondismiss: function () {
             setIsPaying(false);
             setMessage("Payment popup closed.");
-          },
-        },
+          }
+        }
       };
 
       const paymentObject = new window.Razorpay(options);
@@ -177,7 +194,7 @@ function Subject() {
         <p>Choose a PYQ solution PDF</p>
       </header>
 
-      {isPaidSubject && !isUnlocked && (
+      {isPaidSubject && !hasAccess && (
         <section className="payment-panel">
           <div className="payment-icon">⚡</div>
 
@@ -188,8 +205,8 @@ function Subject() {
           </p>
 
           <p className="payment-small">
-            Use coupon <strong>EARLY50</strong> to unlock DSP at ₹5.
-          </p>
+  Have a coupon? Apply it below.
+</p>
 
           <div className="payment-row">
             <input
@@ -217,15 +234,19 @@ function Subject() {
         </section>
       )}
 
-      {isPaidSubject && isUnlocked && (
+      {isPaidSubject && hasAccess && (
         <section className="payment-success-panel">
-          <p>✅ DSP unlocked. You can now view all PDFs.</p>
+          <p>
+            {isAdmin
+              ? "✅ Admin access granted. You can view all DSP PDFs."
+              : "✅ DSP unlocked. You can now view all PDFs."}
+          </p>
         </section>
       )}
 
       <section className="paper-list">
         {subject.papers.map((paper, index) => {
-          const locked = isPaidSubject && !isUnlocked;
+          const locked = isPaidSubject && !hasAccess;
 
           return (
             <div
