@@ -29,7 +29,7 @@ a {
   max-width: 1280px;
   margin: 0 auto;
   position: relative;
-  overflow: hidden;
+  overflow: auto;
 }
 
 /* =========================================
@@ -38,7 +38,7 @@ a {
 
 .electric-bg {
   position: relative;
-  overflow-x: hidden;
+  overflow-x: auto;
   background:
     radial-gradient(circle at 20% 0%, rgba(59, 130, 246, 0.16), transparent 28%),
     radial-gradient(circle at 85% 10%, rgba(139, 92, 246, 0.14), transparent 32%),
@@ -1552,5 +1552,63 @@ a {
   .login-button img {
     width: 28px;
     height: 28px;
+  }
+}
+/* =========================================
+   MOBILE PDF TOUCH / PINCH ZOOM FIX
+========================================= */
+
+html,
+body {
+  touch-action: auto;
+  overscroll-behavior: auto;
+}
+
+.pdf-viewer-page,
+.pdf-viewer-shell,
+.pdf-container,
+.pdf-scroll-area,
+.react-pdf__Document,
+.react-pdf__Page {
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+.pdf-scroll-area,
+.pdf-container {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.react-pdf__Page canvas {
+  max-width: none !important;
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+/* On mobile, make PDF naturally draggable and zoomable */
+@media (max-width: 700px) {
+  .pdf-viewer-page,
+  .pdf-viewer-shell {
+    width: 100%;
+    min-height: 100vh;
+    overflow: auto;
+    padding: 0;
+  }
+
+  .pdf-container,
+  .pdf-scroll-area {
+    width: 100%;
+    height: 100vh;
+    overflow: auto;
+    padding: 12px;
+  }
+
+  .react-pdf__Document {
+    width: max-content;
+    min-width: 100%;
+    margin: 0 auto;
+  }
+
+  .react-pdf__Page {
+    margin: 0 auto 18px;
   }
 }

@@ -8,9 +8,7 @@ const API_URL = "https://sem-mate-pyq.onrender.com";
 
 // Your owner/admin Gmail IDs.
 // Add more emails here if you want to give free access to someone.
-const ADMIN_EMAILS = [
-  "maxjoy146@gmail.com"
-];
+const ADMIN_EMAILS = ["maxjoy146@gmail.com"];
 
 function Subject() {
   const { semesterName, subjectName } = useParams();
@@ -23,9 +21,9 @@ function Subject() {
 
   const loggedInEmail = auth.currentUser?.email || "guest";
 
-const storageKey = `paid_${loggedInEmail}_${decodedSemester}_${decodedSubject}`
-  .replace(/\s+/g, "_")
-  .toLowerCase();
+  const storageKey = `paid_${loggedInEmail}_${decodedSemester}_${decodedSubject}`
+    .replace(/\s+/g, "_")
+    .toLowerCase();
 
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [couponCode, setCouponCode] = useState("");
@@ -38,6 +36,8 @@ const storageKey = `paid_${loggedInEmail}_${decodedSemester}_${decodedSubject}`
 
     if (paidStatus === "true") {
       setIsUnlocked(true);
+    } else {
+      setIsUnlocked(false);
     }
   }, [storageKey]);
 
@@ -52,9 +52,7 @@ const storageKey = `paid_${loggedInEmail}_${decodedSemester}_${decodedSubject}`
     );
   }
 
-
   const isAdmin = ADMIN_EMAILS.includes(loggedInEmail);
-
   const isPaidSubject = subject.name === "Digital Signal Processing";
 
   // Final access rule
@@ -63,7 +61,14 @@ const storageKey = `paid_${loggedInEmail}_${decodedSemester}_${decodedSubject}`
   function applyCoupon() {
     const typedCoupon = couponCode.trim().toUpperCase();
 
-    if (typedCoupon === "EARLY50") {
+    if (typedCoupon === "SECBJUEE") {
+      localStorage.setItem(storageKey, "true");
+      setIsUnlocked(true);
+      setFinalPrice(0);
+      setMessage(
+        "Feedback access unlocked successfully. DSP PDFs are now free for you."
+      );
+    } else if (typedCoupon === "EARLY50") {
       setFinalPrice(5);
       setMessage("Coupon applied successfully. DSP access price is now ₹5.");
     } else if (typedCoupon === "") {
@@ -88,12 +93,12 @@ const storageKey = `paid_${loggedInEmail}_${decodedSemester}_${decodedSubject}`
       const orderResponse = await fetch(`${API_URL}/api/create-order`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           subjectName: subject.name,
-          couponCode
-        })
+          couponCode,
+        }),
       });
 
       const orderData = await orderResponse.json();
@@ -121,12 +126,12 @@ const storageKey = `paid_${loggedInEmail}_${decodedSemester}_${decodedSubject}`
             const verifyResponse = await fetch(`${API_URL}/api/verify-payment`, {
               method: "POST",
               headers: {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
               },
               body: JSON.stringify({
                 ...response,
-                subjectName: subject.name
-              })
+                subjectName: subject.name,
+              }),
             });
 
             const verifyData = await verifyResponse.json();
@@ -151,19 +156,19 @@ const storageKey = `paid_${loggedInEmail}_${decodedSemester}_${decodedSubject}`
         prefill: {
           name: auth.currentUser?.displayName || "Student",
           email: auth.currentUser?.email || "student@example.com",
-          contact: "9999999999"
+          contact: "9999999999",
         },
 
         theme: {
-          color: "#facc15"
+          color: "#facc15",
         },
 
         modal: {
           ondismiss: function () {
             setIsPaying(false);
             setMessage("Payment popup closed.");
-          }
-        }
+          },
+        },
       };
 
       const paymentObject = new window.Razorpay(options);
@@ -202,12 +207,12 @@ const storageKey = `paid_${loggedInEmail}_${decodedSemester}_${decodedSubject}`
           <h2>Unlock DSP Access</h2>
 
           <p>
-            Price: <strong>₹{finalPrice}</strong>
+            Price: <strong>{finalPrice === 0 ? "Free" : `₹${finalPrice}`}</strong>
           </p>
 
           <p className="payment-small">
-  Have a coupon? Apply it below.
-</p>
+            Have an access or discount code? Apply it below.
+          </p>
 
           <div className="payment-row">
             <input
@@ -222,14 +227,16 @@ const storageKey = `paid_${loggedInEmail}_${decodedSemester}_${decodedSubject}`
             </button>
           </div>
 
-          <button
-            type="button"
-            className="pay-button"
-            onClick={handlePayment}
-            disabled={isPaying}
-          >
-            {isPaying ? "Processing..." : `Pay ₹${finalPrice} and Unlock`}
-          </button>
+          {finalPrice > 0 && (
+            <button
+              type="button"
+              className="pay-button"
+              onClick={handlePayment}
+              disabled={isPaying}
+            >
+              {isPaying ? "Processing..." : `Pay ₹${finalPrice} and Unlock`}
+            </button>
+          )}
 
           {message && <p className="payment-message">{message}</p>}
         </section>
@@ -282,6 +289,7 @@ const storageKey = `paid_${loggedInEmail}_${decodedSemester}_${decodedSubject}`
           );
         })}
       </section>
+
       <Footer />
     </div>
   );
