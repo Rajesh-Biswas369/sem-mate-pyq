@@ -3,7 +3,6 @@ import { Link, useParams } from "react-router-dom";
 import { Document, Page, pdfjs } from "react-pdf";
 import { pyqData } from "../data/pyqData";
 
-// Keep these if you want text selection, but we will disable them on mobile for speed
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
@@ -20,15 +19,43 @@ function PdfViewer() {
   const paper = subject?.papers[Number(paperIndex)];
 
   const [numPages, setNumPages] = useState(null);
-  const [scale, setScale] = useState(1.0); // Start at exactly 100%
+  const [currentPage, setCurrentPage] = useState(1); // Track current scroll page
+  const [scale, setScale] = useState(1.0);
   const [containerWidth, setContainerWidth] = useState(window.innerWidth);
 
-  // This hook ensures the PDF always perfectly fits the user's screen (Phone vs PC)
   useEffect(() => {
     const handleResize = () => setContainerWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // Intersection Observer to magically track which page is currently on screen
+  useEffect(() => {
+    if (!numPages) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const pageNum = entry.target.getAttribute("data-page-number");
+            if (pageNum) setCurrentPage(Number(pageNum));
+          }
+        });
+      },
+      { threshold: 0.4 } // Triggers when 40% of a page is visible on screen
+    );
+
+    // Give react-pdf a tiny moment to render the divs, then observe them
+    const timeoutId = setTimeout(() => {
+      const pageElements = document.querySelectorAll(".pdf-page-wrap");
+      pageElements.forEach((page) => observer.observe(page));
+    }, 1000);
+
+    return () => {
+      clearTimeout(timeoutId);
+      observer.disconnect();
+    };
+  }, [numPages]);
 
   if (!paper) {
     return <div className="app electric-bg">PDF not found.</div>;
@@ -38,23 +65,28 @@ function PdfViewer() {
     setNumPages(numPages);
   }
 
-  // Calculate base width: full width on mobile, max 800px on PC
   const baseWidth = containerWidth < 768 ? containerWidth * 0.95 : 800;
 
   return (
     <div className="app electric-bg page-shell pdf-viewer-shell">
       {/* Top Navigation Bar */}
       <div className="topbar pdf-nav">
-        <Link
-          to={`/subject/${encodeURIComponent(decodedSemester)}/${encodeURIComponent(decodedSubject)}`}
-          className="tiny-action back-btn"
-        >
-          ←
-        </Link>
+        <div className="nav-left">
+          <Link
+            to={`/subject/${encodeURIComponent(decodedSemester)}/${encodeURIComponent(decodedSubject)}`}
+            className="tiny-action back-btn"
+          >
+            ←
+          </Link>
+          
+          {/* New Page Counter Pill */}
+          <div className="page-counter">
+            {currentPage} / {numPages || "-"}
+          </div>
+        </div>
 
         <p className="pdf-header-title">{paper.title}</p>
 
-        {/* New Simple Zoom Controls */}
         <div className="zoom-controls">
           <button 
             className="tiny-action" 
@@ -72,7 +104,6 @@ function PdfViewer() {
         </div>
       </div>
 
-      {/* PDF Stage */}
       <div className="pdf-stage pdf-scroll-area">
         <Document
           file={paper.pdf}
@@ -81,14 +112,17 @@ function PdfViewer() {
           error={<p className="pdf-status">Failed to load PDF file.</p>}
         >
           {Array.from(new Array(numPages), (_, index) => (
-            <div className="pdf-page-wrap thunder-paper" key={`page_${index + 1}`}>
+            <div 
+              className="pdf-page-wrap thunder-paper" 
+              key={`page_${index + 1}`}
+              data-page-number={index + 1} // Crucial for the observer to know what page this is
+            >
               <Page
                 pageNumber={index + 1}
                 width={baseWidth * scale}
-                // Disabling text & annotation layers drastically improves scrolling speed on mobile
                 renderTextLayer={false}
                 renderAnnotationLayer={false}
-                devicePixelRatio={Math.max(window.devicePixelRatio || 1, 2)} // Keeps text crisp
+                devicePixelRatio={Math.max(window.devicePixelRatio || 1, 2)}
               />
             </div>
           ))}
