@@ -1667,3 +1667,34 @@ body {
   -webkit-overflow-scrolling: touch;
   padding-bottom: 50px;
 }
+/* --- UPDATE TO PDF STYLES --- */
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-counter {
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  color: #93c5fd;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+}
+
+/* Ensure the title doesn't get squished weirdly now that we added the counter */
+.pdf-header-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  color: #e2e8f0;
+  padding: 0 10px;
+}
