@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useEffect, useState } from "react";
+import { Analytics } from "@vercel/analytics/react";
 
 import Home from "./pages/Home";
 import Semester from "./pages/Semester";
@@ -29,30 +30,10 @@ function App() {
   }
 
   if (checkingLogin) {
-    return (
-      <div className="login-page electric-bg">
-        <div className="storm-layer"></div>
-        <div className="real-lightning bolt-1"></div>
-        <div className="real-lightning bolt-2"></div>
-        <div className="real-lightning bolt-3"></div>
-
-        <div className="login-card">
-          <div className="login-logo">⚡</div>
-          <h1>Loading...</h1>
-          <p>Checking your login status</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Login />;
-  }
-
   return (
     <BrowserRouter>
       <Routes>
-        {/* Look here! The logout card is now explicitly tied ONLY to the Home Route */}
+        {/* The logout card is explicitly tied ONLY to the Home Route */}
         <Route
           path="/"
           element={
@@ -74,7 +55,7 @@ function App() {
           }
         />
         
-        {/* The rest of your routes are clean and untouched */}
+        {/* The rest of your routes */}
         <Route path="/semester/:semesterName" element={<Semester />} />
         <Route
           path="/subject/:semesterName/:subjectName"
@@ -85,6 +66,10 @@ function App() {
           element={<PdfViewer />}
         />
       </Routes>
+
+      {/* Analytics goes here! Inside BrowserRouter, but outside Routes */}
+      <Analytics /> 
+
     </BrowserRouter>
   );
 }
