@@ -274,6 +274,24 @@ export const pyqData = [
       type: "Solution",
       pdf: "/Sem4/Digital-Signal-Processing/Solution/solution-2025-part-2.pdf",
     },
+    {
+            title: "DSP 2026 Question Paper",
+            year: "2026",
+            type: "Question Paper",
+            pdf: "/Sem4/Digital-Signal-Processing/question-2026.pdf",
+          },
+          {
+            title: "DSP 2026 Solution Part 1",
+            year: "2026",
+            type: "Solution",
+            pdf: "/Sem4/Digital-Signal-Processing/Solution/solution-2026-part-1.pdf",
+          },
+          {
+            title: "DSP 2026 Solution Part 2",
+            year: "2026",
+            type: "Solution",
+            pdf: "/Sem4/Digital-Signal-Processing/Solution/solution-2026-part-2.pdf",
+          },
   ],
 },
       {
