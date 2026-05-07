@@ -1673,7 +1673,11 @@ body {
   align-items: center;
   gap: 10px;
 }
-
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .page-counter {
   background: rgba(59, 130, 246, 0.2);
   border: 1px solid rgba(59, 130, 246, 0.5);

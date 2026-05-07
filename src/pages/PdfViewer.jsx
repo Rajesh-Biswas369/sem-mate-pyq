@@ -19,7 +19,7 @@ function PdfViewer() {
   const paper = subject?.papers[Number(paperIndex)];
 
   const [numPages, setNumPages] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1); // Track current scroll page
+  const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1.0);
   const [containerWidth, setContainerWidth] = useState(window.innerWidth);
 
@@ -29,33 +29,25 @@ function PdfViewer() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Intersection Observer to magically track which page is currently on screen
-  useEffect(() => {
-    if (!numPages) return;
+  // Rock-solid scroll tracker
+  const handleScroll = (e) => {
+    const container = e.target;
+    const pages = container.querySelectorAll(".pdf-page-wrap");
+    
+    // Middle of the container
+    const middle = window.innerHeight / 2;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const pageNum = entry.target.getAttribute("data-page-number");
-            if (pageNum) setCurrentPage(Number(pageNum));
-          }
-        });
-      },
-      { threshold: 0.4 } // Triggers when 40% of a page is visible on screen
-    );
-
-    // Give react-pdf a tiny moment to render the divs, then observe them
-    const timeoutId = setTimeout(() => {
-      const pageElements = document.querySelectorAll(".pdf-page-wrap");
-      pageElements.forEach((page) => observer.observe(page));
-    }, 1000);
-
-    return () => {
-      clearTimeout(timeoutId);
-      observer.disconnect();
-    };
-  }, [numPages]);
+    pages.forEach((page) => {
+      const rect = page.getBoundingClientRect();
+      // If this page crosses the middle of the screen, make it the active page
+      if (rect.top <= middle && rect.bottom >= middle) {
+        const pageNum = Number(page.getAttribute("data-page-number"));
+        if (pageNum && pageNum !== currentPage) {
+          setCurrentPage(pageNum);
+        }
+      }
+    });
+  };
 
   if (!paper) {
     return <div className="app electric-bg">PDF not found.</div>;
@@ -63,6 +55,7 @@ function PdfViewer() {
 
   function onDocumentLoadSuccess({ numPages }) {
     setNumPages(numPages);
+    setCurrentPage(1); // Reset to page 1 when loaded
   }
 
   const baseWidth = containerWidth < 768 ? containerWidth * 0.95 : 800;
@@ -79,7 +72,7 @@ function PdfViewer() {
             ←
           </Link>
           
-          {/* New Page Counter Pill */}
+          {/* Page Counter Pill */}
           <div className="page-counter">
             {currentPage} / {numPages || "-"}
           </div>
@@ -104,7 +97,8 @@ function PdfViewer() {
         </div>
       </div>
 
-      <div className="pdf-stage pdf-scroll-area">
+      {/* Added the onScroll listener right here */}
+      <div className="pdf-stage pdf-scroll-area" onScroll={handleScroll}>
         <Document
           file={paper.pdf}
           onLoadSuccess={onDocumentLoadSuccess}
@@ -115,7 +109,7 @@ function PdfViewer() {
             <div 
               className="pdf-page-wrap thunder-paper" 
               key={`page_${index + 1}`}
-              data-page-number={index + 1} // Crucial for the observer to know what page this is
+              data-page-number={index + 1}
             >
               <Page
                 pageNumber={index + 1}
