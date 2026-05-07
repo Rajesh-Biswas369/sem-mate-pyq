@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Document, Page, pdfjs } from "react-pdf";
 import { pyqData } from "../data/pyqData";
 
+// Keep these if you want text selection, but we will disable them on mobile for speed
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
@@ -19,8 +20,15 @@ function PdfViewer() {
   const paper = subject?.papers[Number(paperIndex)];
 
   const [numPages, setNumPages] = useState(null);
-  const [scale, setScale] = useState(1.1);
-  const [showTools, setShowTools] = useState(false);
+  const [scale, setScale] = useState(1.0); // Start at exactly 100%
+  const [containerWidth, setContainerWidth] = useState(window.innerWidth);
+
+  // This hook ensures the PDF always perfectly fits the user's screen (Phone vs PC)
+  useEffect(() => {
+    const handleResize = () => setContainerWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   if (!paper) {
     return <div className="app electric-bg">PDF not found.</div>;
@@ -30,72 +38,58 @@ function PdfViewer() {
     setNumPages(numPages);
   }
 
-  function blockKeys(e) {
-    if (
-      (e.ctrlKey && e.key.toLowerCase() === "s") ||
-      (e.ctrlKey && e.key.toLowerCase() === "p") ||
-      (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "i")
-    ) {
-      e.preventDefault();
-    }
-  }
+  // Calculate base width: full width on mobile, max 800px on PC
+  const baseWidth = containerWidth < 768 ? containerWidth * 0.95 : 800;
 
   return (
-    <div
-      className="viewer-page electric-bg"
-      onContextMenu={(e) => e.preventDefault()}
-      onKeyDown={blockKeys}
-      tabIndex="0"
-    >
-      <div className="storm-layer"></div>
-      <div className="real-lightning bolt-1"></div>
-      <div className="real-lightning bolt-2"></div>
-      <div className="real-lightning bolt-3"></div>
-
-      <div className="floating-viewer-actions">
+    <div className="app electric-bg page-shell pdf-viewer-shell">
+      {/* Top Navigation Bar */}
+      <div className="topbar pdf-nav">
         <Link
           to={`/subject/${encodeURIComponent(decodedSemester)}/${encodeURIComponent(decodedSubject)}`}
-          className="tiny-action"
+          className="tiny-action back-btn"
         >
           ←
         </Link>
 
-        <button className="tiny-action" onClick={() => setShowTools((v) => !v)}>
-          ⚡
-        </button>
+        <p className="pdf-header-title">{paper.title}</p>
+
+        {/* New Simple Zoom Controls */}
+        <div className="zoom-controls">
+          <button 
+            className="tiny-action" 
+            onClick={() => setScale((s) => Math.max(0.5, s - 0.2))}
+          >
+            −
+          </button>
+          <span className="zoom-text">{Math.round(scale * 100)}%</span>
+          <button 
+            className="tiny-action" 
+            onClick={() => setScale((s) => Math.min(3.0, s + 0.2))}
+          >
+            +
+          </button>
+        </div>
       </div>
 
-      {showTools && (
-        <div className="floating-tools">
-          <p>{paper.title}</p>
-
-          <button onClick={() => setScale((s) => Math.max(0.7, s - 0.1))}>
-            Zoom -
-          </button>
-
-          <button onClick={() => setScale((s) => Math.min(1.8, s + 0.1))}>
-            Zoom +
-          </button>
-
-          <span>View Only</span>
-        </div>
-      )}
-
-      <div className="pdf-stage">
+      {/* PDF Stage */}
+      <div className="pdf-stage pdf-scroll-area">
         <Document
           file={paper.pdf}
           onLoadSuccess={onDocumentLoadSuccess}
-          onLoadError={(error) => {
-            console.error("PDF load error:", error);
-            console.log("Trying to load PDF from:", paper.pdf);
-          }}
-          loading={<p className="pdf-status">Loading PDF...</p>}
+          loading={<p className="pdf-status">Loading PDF perfectly...</p>}
           error={<p className="pdf-status">Failed to load PDF file.</p>}
         >
           {Array.from(new Array(numPages), (_, index) => (
             <div className="pdf-page-wrap thunder-paper" key={`page_${index + 1}`}>
-              <div className="watermark">JU EE PYQ • View Only</div>
-              <Page pageNumber={index + 1} scale={scale} />
+              <Page
+                pageNumber={index + 1}
+                width={baseWidth * scale}
+                // Disabling text & annotation layers drastically improves scrolling speed on mobile
+                renderTextLayer={false}
+                renderAnnotationLayer={false}
+                devicePixelRatio={Math.max(window.devicePixelRatio || 1, 2)} // Keeps text crisp
+              />
             </div>
           ))}
         </Document>

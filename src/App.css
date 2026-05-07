@@ -1612,3 +1612,58 @@ body {
     margin: 0 auto 18px;
   }
 }
+/* --- NEW PDF VIEWER STYLES --- */
+.pdf-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 15px;
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  margin-bottom: 20px;
+  position: sticky;
+  top: 10px;
+  z-index: 50;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pdf-header-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  color: #e2e8f0;
+}
+
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 4px 8px;
+  border-radius: 20px;
+}
+
+.zoom-text {
+  font-size: 12px;
+  font-weight: bold;
+  color: #94a3b8;
+  min-width: 40px;
+  text-align: center;
+}
+
+/* Make sure the scroll area fills the screen smoothly */
+.pdf-scroll-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 50px;
+}
