@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useEffect, useState } from "react";
 
@@ -10,32 +10,6 @@ import Login from "./pages/Login";
 
 import { auth } from "./firebase";
 import "./App.css";
-
-// Created a small component to handle showing/hiding the profile
-function FloatingProfile({ user, handleLogout }) {
-  const location = useLocation();
-
-  // If the current path is NOT the home page, return nothing (hide it)
-  if (location.pathname !== "/") {
-    return null;
-  }
-
-  // Otherwise, show the floating card
-  return (
-    <div className="user-floating-card">
-      {user.photoURL && (
-        <img src={user.photoURL} alt={user.displayName || "User"} />
-      )}
-
-      <div>
-        <strong>{user.displayName || "Student"}</strong>
-        <span>{user.email}</span>
-      </div>
-
-      <button onClick={handleLogout}>Logout</button>
-    </div>
-  );
-}
 
 function App() {
   const [user, setUser] = useState(null);
@@ -77,11 +51,30 @@ function App() {
 
   return (
     <BrowserRouter>
-      {/* Replaced the hardcoded div with the new component */}
-      <FloatingProfile user={user} handleLogout={handleLogout} />
-
       <Routes>
-        <Route path="/" element={<Home />} />
+        {/* Look here! The logout card is now explicitly tied ONLY to the Home Route */}
+        <Route
+          path="/"
+          element={
+            <>
+              <div className="user-floating-card">
+                {user.photoURL && (
+                  <img src={user.photoURL} alt={user.displayName || "User"} />
+                )}
+
+                <div>
+                  <strong>{user.displayName || "Student"}</strong>
+                  <span>{user.email}</span>
+                </div>
+
+                <button onClick={handleLogout}>Logout</button>
+              </div>
+              <Home />
+            </>
+          }
+        />
+        
+        {/* The rest of your routes are clean and untouched */}
         <Route path="/semester/:semesterName" element={<Semester />} />
         <Route
           path="/subject/:semesterName/:subjectName"
