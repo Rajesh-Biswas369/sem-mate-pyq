@@ -1683,19 +1683,19 @@ body {
 /* 2. The invisible track on the right side of the screen */
 .drive-scrollbar-track {
   position: fixed;
-  top: 100px;
-  right: 6px;
-  height: calc(100vh - 120px);
+  top: 80px;      /* Raised slightly */
+  bottom: 30px;   /* Let the browser calculate the height automatically */
+  right: 12px;    /* Pulled inward so curved mobile screens don't hide it */
   width: 30px;
-  z-index: 100;
+  z-index: 9999;  /* CRITICAL: Punches through all PDF layers */
   opacity: 0;
-  pointer-events: none; /* Prevents blocking clicks when invisible */
+  pointer-events: none;
   transition: opacity 0.3s ease;
 }
 
 .drive-scrollbar-track.visible {
   opacity: 1;
-  pointer-events: auto; /* Becomes clickable only when scrolling */
+  pointer-events: auto;
 }
 
 /* 3. The rectangular slide key */
