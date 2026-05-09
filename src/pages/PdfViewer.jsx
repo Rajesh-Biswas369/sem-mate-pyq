@@ -71,6 +71,7 @@ function PdfViewer() {
   const [numPages, setNumPages] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1);
+  const [hdMode, setHdMode] = useState(true);
   const [viewportWidth, setViewportWidth] = useState(
     typeof window === "undefined" ? 900 : window.innerWidth
   );
@@ -109,6 +110,7 @@ function PdfViewer() {
     setNumPages(null);
     setCurrentPage(1);
     setScale(1);
+    setHdMode(true);
     pageRefs.current = [];
 
     const container = scrollContainerRef.current;
@@ -134,10 +136,23 @@ function PdfViewer() {
   }, [pageWidth]);
 
   const devicePixelRatio = useMemo(() => {
-    if (typeof window === "undefined") return 1;
-    if (isMobile) return 1;
-    return Math.min(window.devicePixelRatio || 1, 1.5);
-  }, [isMobile]);
+    if (typeof window === "undefined") return 2;
+
+    const realDevicePixelRatio = window.devicePixelRatio || 1;
+
+    // Important: phones usually have high-DPI screens.
+    // Rendering mobile PDFs at DPR 1 makes text look soft/blurry.
+    // HD mode keeps the words sharp while nearby-page rendering controls lag.
+    if (isMobile) {
+      return hdMode
+        ? Math.min(Math.max(realDevicePixelRatio, 2.25), 2.8)
+        : Math.min(Math.max(realDevicePixelRatio, 1.25), 1.5);
+    }
+
+    return hdMode
+      ? Math.min(Math.max(realDevicePixelRatio, 1.5), 2.4)
+      : Math.min(Math.max(realDevicePixelRatio, 1), 1.5);
+  }, [isMobile, hdMode]);
 
   useEffect(() => {
     if (!numPages || !scrollContainerRef.current) return;
@@ -298,10 +313,18 @@ function PdfViewer() {
           <span className="zoom-text">{Math.round(scale * 100)}%</span>
           <button
             className="tiny-action"
-            onClick={() => setScale((currentScale) => Math.min(2.25, currentScale + 0.15))}
+            onClick={() => setScale((currentScale) => Math.min(3, currentScale + 0.15))}
             aria-label="Zoom in"
           >
             +
+          </button>
+          <button
+            className="tiny-action"
+            onClick={() => setHdMode((currentMode) => !currentMode)}
+            aria-label="Toggle HD PDF clarity"
+            title={hdMode ? "HD clarity on" : "HD clarity off"}
+          >
+            HD
           </button>
         </div>
       </div>
@@ -335,7 +358,7 @@ function PdfViewer() {
                 <div
                   className={`pdf-page-wrap thunder-paper drive-pdf-page ${
                     renderThisPage ? "" : "drive-pdf-placeholder"
-                  }`}
+                  } ${hdMode ? "pdf-hd-page" : "pdf-balanced-page"}`}
                   key={`page_${pageNumber}`}
                   data-page-number={pageNumber}
                   ref={(element) => {
