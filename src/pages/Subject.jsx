@@ -6,6 +6,8 @@ import Footer from "../components/Footer";
 
 const ADMIN_EMAILS = ["maxjoy146@gmail.com", "kk9327721@gmail.com"];
 const TRIAL_SECONDS = 120;
+const FREE_COUPON = "TRKK";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 function countFiles(folderOrSubject) {
   const directFiles = folderOrSubject?.files?.length || 0;
@@ -23,6 +25,22 @@ function countFiles(folderOrSubject) {
   return directFiles + nestedFiles + subjectFiles;
 }
 
+function loadRazorpayCheckout() {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
 function Subject() {
   const { semesterName, subjectName } = useParams();
   const navigate = useNavigate();
@@ -32,7 +50,9 @@ function Subject() {
   const [selectedSubFolder, setSelectedSubFolder] = useState(null);
   const [trialTime, setTrialTime] = useState(0);
   const [isPaid, setIsPaid] = useState(false);
+  const [coupon, setCoupon] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   const decodedSem = decodeURIComponent(semesterName || "");
   const decodedSub = decodeURIComponent(subjectName || "");
@@ -51,6 +71,7 @@ function Subject() {
 
   const trialKey = makeKey("trial");
   const paidKey = makeKey("paid");
+  const paymentKey = makeKey("payment");
   const trialStarted = Boolean(trialKey && localStorage.getItem(trialKey));
   const subjectRequiresPayment = Boolean(subject?.price);
 
@@ -65,6 +86,7 @@ function Subject() {
   useEffect(() => {
     setSelectedFolder(null);
     setSelectedSubFolder(null);
+    setCoupon("");
     setPaymentMessage("");
   }, [subject]);
 
@@ -125,23 +147,139 @@ function Subject() {
     setPaymentMessage("2-minute trial started. Documents are temporarily unlocked.");
   };
 
-  const markPaidAfterSuccessfulPayment = () => {
+  const markPaidAfterSuccessfulPayment = (paymentData = {}) => {
     if (!user || !paidKey) return;
 
     localStorage.setItem(paidKey, "true");
+    localStorage.setItem(
+      paymentKey,
+      JSON.stringify({
+        ...paymentData,
+        subjectName: subject?.name,
+        email: user.email,
+        paidAt: new Date().toISOString(),
+      })
+    );
     setIsPaid(true);
     setPaymentMessage("Payment successful. Documents are unlocked.");
   };
 
-  const handlePayment = () => {
-    // Connect Razorpay here.
-    // After Razorpay returns success, call markPaidAfterSuccessfulPayment().
-    alert(
-      "Connect Razorpay payment here. After successful payment, call markPaidAfterSuccessfulPayment()."
-    );
+  const handleApplyCoupon = () => {
+    if (!user || !paidKey) {
+      setPaymentMessage("Please login first to apply a promo code.");
+      return;
+    }
 
-    // Example inside Razorpay success callback:
-    // markPaidAfterSuccessfulPayment();
+    if (coupon.trim().toUpperCase() === FREE_COUPON) {
+      localStorage.setItem(paidKey, "true");
+      setIsPaid(true);
+      setPaymentMessage("Promo code applied successfully. Documents are unlocked.");
+      return;
+    }
+
+    setPaymentMessage("Invalid promo code.");
+  };
+
+  const handlePayment = async () => {
+    if (!user) {
+      setPaymentMessage("Please login first before payment.");
+      navigate("/login");
+      return;
+    }
+
+    if (!subject?.name || !subject?.price) {
+      setPaymentMessage("Payment is not configured for this subject.");
+      return;
+    }
+
+    try {
+      setPaymentLoading(true);
+      setPaymentMessage("Preparing secure payment...");
+
+      const scriptLoaded = await loadRazorpayCheckout();
+      if (!scriptLoaded) {
+        setPaymentMessage("Could not load Razorpay. Check your internet connection.");
+        return;
+      }
+
+      const orderResponse = await fetch(`${API_BASE_URL}/api/create-order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subjectName: subject.name,
+          email: user.email,
+        }),
+      });
+
+      const orderData = await orderResponse.json();
+
+      if (!orderResponse.ok || !orderData.success) {
+        throw new Error(orderData.message || "Could not create payment order.");
+      }
+
+      const options = {
+        key: orderData.key,
+        amount: orderData.order.amount,
+        currency: orderData.order.currency,
+        name: "SEM-MATE",
+        description: `${subject.name} Premium Access`,
+        order_id: orderData.order.id,
+        prefill: {
+          name: user.displayName || "Student",
+          email: user.email || "",
+        },
+        notes: {
+          subjectName: subject.name,
+          email: user.email || "",
+        },
+        theme: {
+          color: "#facc15",
+        },
+        modal: {
+          ondismiss: () => {
+            setPaymentLoading(false);
+            setPaymentMessage("Payment window closed. Documents are still locked.");
+          },
+        },
+        handler: async (response) => {
+          try {
+            setPaymentMessage("Verifying payment...");
+
+            const verifyResponse = await fetch(`${API_BASE_URL}/api/verify-payment`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                ...response,
+                subjectName: subject.name,
+                email: user.email,
+              }),
+            });
+
+            const verifyData = await verifyResponse.json();
+
+            if (!verifyResponse.ok || !verifyData.success) {
+              throw new Error(verifyData.message || "Payment verification failed.");
+            }
+
+            markPaidAfterSuccessfulPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+            });
+          } catch (error) {
+            setPaymentMessage(error.message || "Payment verification failed.");
+          } finally {
+            setPaymentLoading(false);
+          }
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+    } catch (error) {
+      setPaymentMessage(error.message || "Payment could not be started.");
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
   const handleMainFolderOpen = (folder) => {
@@ -256,8 +394,19 @@ function Subject() {
                   </button>
                 )}
 
-                <button className="pay-btn" onClick={handlePayment}>
-                  Pay ₹{subject.price} Securely
+                <div className="coupon-row">
+                  <input
+                    placeholder="Enter promo code"
+                    value={coupon}
+                    onChange={(event) => setCoupon(event.target.value)}
+                  />
+                  <button type="button" onClick={handleApplyCoupon}>
+                    Apply
+                  </button>
+                </div>
+
+                <button className="pay-btn" onClick={handlePayment} disabled={paymentLoading}>
+                  {paymentLoading ? "Processing..." : `Pay ₹${subject.price} Securely`}
                 </button>
               </>
             )}

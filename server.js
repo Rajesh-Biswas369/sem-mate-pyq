@@ -23,12 +23,17 @@ const razorpay = new Razorpay({
 });
 
 const SUBJECTS = {
+  "Sequential Systems & Microprocessor": {
+    price: 6,
+  },
   "Digital Signal Processing": {
     price: 10,
-    couponCode: "EARLY50",
-    couponPrice: 5,
   },
 };
+
+function cleanSubjectName(subjectName = "") {
+  return String(subjectName).trim();
+}
 
 app.get("/", (req, res) => {
   res.send("Razorpay backend running successfully");
@@ -36,13 +41,8 @@ app.get("/", (req, res) => {
 
 app.post("/api/create-order", async (req, res) => {
   try {
-    const { subjectName, couponCode } = req.body;
-
-    console.log("Create order request:", {
-      subjectName,
-      couponCode,
-    });
-
+    const subjectName = cleanSubjectName(req.body.subjectName);
+    const email = String(req.body.email || "").trim();
     const subject = SUBJECTS[subjectName];
 
     if (!subject) {
@@ -52,34 +52,23 @@ app.post("/api/create-order", async (req, res) => {
       });
     }
 
-    let finalPrice = subject.price;
-
-    if (
-      couponCode &&
-      couponCode.trim().toUpperCase() === subject.couponCode
-    ) {
-      finalPrice = subject.couponPrice;
-    }
-
-    const amountInPaise = finalPrice * 100;
+    const amountInPaise = subject.price * 100;
 
     const order = await razorpay.orders.create({
       amount: amountInPaise,
       currency: "INR",
-      receipt: `receipt_${Date.now()}`,
+      receipt: `sem_mate_${Date.now()}`,
       notes: {
         subjectName,
-        couponCode: couponCode || "",
+        email,
       },
     });
-
-    console.log("✅ Razorpay order created:", order.id);
 
     return res.json({
       success: true,
       key: process.env.RAZORPAY_KEY_ID,
       order,
-      finalPrice,
+      finalPrice: subject.price,
     });
   } catch (error) {
     console.error("❌ Create order error:", error);
@@ -98,30 +87,43 @@ app.post("/api/verify-payment", (req, res) => {
       razorpay_payment_id,
       razorpay_signature,
       subjectName,
+      email,
     } = req.body;
 
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
-
-    const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(body.toString())
-      .digest("hex");
-
-    if (expectedSignature === razorpay_signature) {
-      console.log("✅ Payment verified:", razorpay_payment_id);
-
-      return res.json({
-        success: true,
-        message: "Payment verified successfully.",
-        subjectName,
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment verification data is missing.",
       });
     }
 
-    console.log("❌ Invalid payment signature.");
+    const body = `${razorpay_order_id}|${razorpay_payment_id}`;
 
-    return res.status(400).json({
-      success: false,
-      message: "Payment verification failed.",
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body)
+      .digest("hex");
+
+    if (expectedSignature !== razorpay_signature) {
+      console.log("❌ Invalid payment signature.");
+      return res.status(400).json({
+        success: false,
+        message: "Payment verification failed.",
+      });
+    }
+
+    console.log("✅ Payment verified:", {
+      paymentId: razorpay_payment_id,
+      subjectName,
+      email,
+    });
+
+    return res.json({
+      success: true,
+      message: "Payment verified successfully.",
+      subjectName,
+      email,
+      paymentId: razorpay_payment_id,
     });
   } catch (error) {
     console.error("❌ Verify payment error:", error);
@@ -133,7 +135,7 @@ app.post("/api/verify-payment", (req, res) => {
   }
 });
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Razorpay backend running at http://localhost:${PORT}`);
