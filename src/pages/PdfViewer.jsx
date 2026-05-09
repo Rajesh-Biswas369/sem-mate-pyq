@@ -2,11 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { Document, Page, pdfjs } from "react-pdf";
 import { pyqData } from "../data/pyqData";
+import { auth } from "../firebase";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+const ADMIN_EMAILS = ["maxjoy146@gmail.com", "kk9327721@gmail.com"];
+const TRIAL_SECONDS = 120;
 
 function safeDecode(value = "") {
   try {
@@ -24,6 +28,11 @@ function titleFromPath(path = "") {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function normalizeFileUrl(rawValue = "") {
+  const decoded = safeDecode(rawValue).replace(/^\/+/, "");
+  return decoded ? `/${decoded}` : "";
+}
+
 function getLegacyPaper(semesterName, subjectName, paperIndex) {
   if (!semesterName || !subjectName || paperIndex === undefined) return null;
 
@@ -35,14 +44,53 @@ function getLegacyPaper(semesterName, subjectName, paperIndex) {
   return subject?.papers?.[Number(paperIndex)] || null;
 }
 
-function normalizeFileUrl(rawValue = "") {
-  const decoded = safeDecode(rawValue).replace(/^\/+/, "");
-  return decoded ? `/${decoded}` : "";
+function walkFolders(folders = [], fileUrl) {
+  for (const folder of folders) {
+    const foundFile = folder.files?.find((file) => normalizeFileUrl(file.url) === fileUrl);
+    if (foundFile) return foundFile;
+
+    const nestedFile = walkFolders(folder.subFolders || [], fileUrl);
+    if (nestedFile) return nestedFile;
+  }
+
+  return null;
+}
+
+function findFileContext(fileUrl) {
+  const normalizedUrl = normalizeFileUrl(fileUrl);
+
+  for (const semester of pyqData) {
+    for (const subject of semester.subjects || []) {
+      const file = walkFolders(subject.folders || [], normalizedUrl);
+      if (file) return { semester, subject, file };
+    }
+  }
+
+  // Extra fallback for the SSM public folder. This prevents /viewer/Sem4/SSM/... bypass.
+  if (normalizedUrl.startsWith("/Sem4/SSM/")) {
+    const semester = pyqData.find((item) => item.semester === "Semester 4");
+    const subject = semester?.subjects?.find(
+      (item) => item.name === "Sequential Systems & Microprocessor"
+    );
+
+    if (semester && subject) return { semester, subject, file: null };
+  }
+
+  return null;
+}
+
+function makeAccessKey(prefix, email, subjectName) {
+  if (!email || !subjectName) return "";
+  return `${prefix}_${email}_${subjectName}`.replace(/\s+/g, "");
 }
 
 function PdfViewer() {
   const params = useParams();
   const location = useLocation();
+
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [trialTime, setTrialTime] = useState(0);
 
   const legacyPaper = useMemo(
     () => getLegacyPaper(params.semesterName, params.subjectName, params.paperIndex),
@@ -52,17 +100,25 @@ function PdfViewer() {
   const rawFileParam = params.fileUrl || params["*"] || "";
 
   const fileUrl = useMemo(() => {
-    if (location.state?.fileUrl) return location.state.fileUrl;
-    if (legacyPaper?.url) return legacyPaper.url;
-    if (legacyPaper?.pdf) return legacyPaper.pdf;
+    if (location.state?.fileUrl) return normalizeFileUrl(location.state.fileUrl);
+    if (legacyPaper?.url) return normalizeFileUrl(legacyPaper.url);
+    if (legacyPaper?.pdf) return normalizeFileUrl(legacyPaper.pdf);
     return normalizeFileUrl(rawFileParam);
   }, [legacyPaper, location.state, rawFileParam]);
 
-  const title = location.state?.title || legacyPaper?.title || titleFromPath(fileUrl);
+  const fileContext = useMemo(() => findFileContext(fileUrl), [fileUrl]);
+  const subject = fileContext?.subject || null;
+  const subjectRequiresPayment = Boolean(location.state?.requiresPayment || subject?.price);
+
+  const title = location.state?.title || legacyPaper?.title || fileContext?.file?.title || titleFromPath(fileUrl);
 
   const backTo =
     location.state?.backTo ||
-    (params.semesterName && params.subjectName
+    (fileContext?.semester?.semester && fileContext?.subject?.name
+      ? `/subject/${encodeURIComponent(fileContext.semester.semester)}/${encodeURIComponent(
+          fileContext.subject.name
+        )}`
+      : params.semesterName && params.subjectName
       ? `/subject/${encodeURIComponent(safeDecode(params.semesterName))}/${encodeURIComponent(
           safeDecode(params.subjectName)
         )}`
@@ -71,11 +127,11 @@ function PdfViewer() {
   const [numPages, setNumPages] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1);
-  const [hdMode, setHdMode] = useState(true);
   const [viewportWidth, setViewportWidth] = useState(
     typeof window === "undefined" ? 900 : window.innerWidth
   );
   const [showDriveScroll, setShowDriveScroll] = useState(false);
+  const [hdMode, setHdMode] = useState(true);
 
   const scrollContainerRef = useRef(null);
   const thumbRef = useRef(null);
@@ -87,6 +143,15 @@ function PdfViewer() {
 
   const isMobile = viewportWidth <= 768;
   const pagesAroundCurrent = isMobile ? 1 : 2;
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+      setUser(currentUser);
+      setAuthReady(true);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     let animationFrame = null;
@@ -110,7 +175,6 @@ function PdfViewer() {
     setNumPages(null);
     setCurrentPage(1);
     setScale(1);
-    setHdMode(true);
     pageRefs.current = [];
 
     const container = scrollContainerRef.current;
@@ -124,38 +188,63 @@ function PdfViewer() {
     };
   }, []);
 
+  const isAdmin = Boolean(user && ADMIN_EMAILS.includes(user.email));
+  const paidKey = makeAccessKey("paid", user?.email, subject?.name);
+  const trialKey = makeAccessKey("trial", user?.email, subject?.name);
+  const isPaid = Boolean(paidKey && localStorage.getItem(paidKey) === "true");
+
+  useEffect(() => {
+    if (!user || !subject || !trialKey) {
+      setTrialTime(0);
+      return;
+    }
+
+    const storedStart = Number(localStorage.getItem(trialKey));
+    if (!storedStart) {
+      setTrialTime(0);
+      return;
+    }
+
+    const elapsed = Math.floor((Date.now() - storedStart) / 1000);
+    setTrialTime(Math.max(TRIAL_SECONDS - elapsed, 0));
+  }, [user, subject, trialKey]);
+
+  useEffect(() => {
+    if (trialTime <= 0) return undefined;
+
+    const timer = setInterval(() => {
+      setTrialTime((previousTime) => Math.max(previousTime - 1, 0));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [trialTime]);
+
+  const hasAccess = !subjectRequiresPayment || Boolean(user && (isAdmin || isPaid || trialTime > 0));
+
   const pageWidth = useMemo(() => {
-    const sideGap = isMobile ? 24 : 96;
+    const sideGap = isMobile ? 18 : 96;
     const maxBaseWidth = isMobile ? viewportWidth - sideGap : 820;
-    return Math.max(280, maxBaseWidth * scale);
+    return Math.max(300, maxBaseWidth * scale);
   }, [isMobile, scale, viewportWidth]);
 
   const estimatedPageHeight = useMemo(() => {
-    // A4-like ratio. This keeps smooth scrolling even before every PDF page is rendered.
     return Math.round(pageWidth * 1.414);
   }, [pageWidth]);
 
   const devicePixelRatio = useMemo(() => {
-    if (typeof window === "undefined") return 2;
+    if (typeof window === "undefined") return 1.5;
 
-    const realDevicePixelRatio = window.devicePixelRatio || 1;
+    const screenDpr = window.devicePixelRatio || 1;
 
-    // Important: phones usually have high-DPI screens.
-    // Rendering mobile PDFs at DPR 1 makes text look soft/blurry.
-    // HD mode keeps the words sharp while nearby-page rendering controls lag.
-    if (isMobile) {
-      return hdMode
-        ? Math.min(Math.max(realDevicePixelRatio, 2.25), 2.8)
-        : Math.min(Math.max(realDevicePixelRatio, 1.25), 1.5);
+    if (hdMode) {
+      return isMobile ? Math.min(screenDpr, 2.5) : Math.min(screenDpr, 2.25);
     }
 
-    return hdMode
-      ? Math.min(Math.max(realDevicePixelRatio, 1.5), 2.4)
-      : Math.min(Math.max(realDevicePixelRatio, 1), 1.5);
-  }, [isMobile, hdMode]);
+    return isMobile ? Math.min(screenDpr, 1.6) : Math.min(screenDpr, 1.75);
+  }, [hdMode, isMobile]);
 
   useEffect(() => {
-    if (!numPages || !scrollContainerRef.current) return;
+    if (!numPages || !scrollContainerRef.current || !hasAccess) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -182,7 +271,7 @@ function PdfViewer() {
     });
 
     return () => observer.disconnect();
-  }, [numPages, pageWidth]);
+  }, [numPages, pageWidth, hasAccess]);
 
   const revealDriveScrollbar = () => {
     if (!driveScrollVisibleRef.current) {
@@ -285,6 +374,37 @@ function PdfViewer() {
     );
   }
 
+  if (!authReady) {
+    return <div className="app electric-bg pdf-status">Checking access...</div>;
+  }
+
+  if (!hasAccess) {
+    return (
+      <div className="app electric-bg page-shell pdf-viewer-shell">
+        <Link to={backTo} className="back-btn">
+          ← Back
+        </Link>
+        <section className="empty-box">
+          <h2>🔒 Document Locked</h2>
+          <p>
+            {!user
+              ? "Please login first. Trial and document viewing are locked without login."
+              : "Payment or an active 2-minute trial is required to view this document."}
+          </p>
+          {!user ? (
+            <Link to="/login" className="open-btn">
+              Login ⚡
+            </Link>
+          ) : (
+            <Link to={backTo} className="open-btn">
+              Go to Access Panel →
+            </Link>
+          )}
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div
       className="app electric-bg page-shell pdf-viewer-shell drive-pdf-viewer"
@@ -320,9 +440,9 @@ function PdfViewer() {
           </button>
           <button
             className="tiny-action"
-            onClick={() => setHdMode((currentMode) => !currentMode)}
-            aria-label="Toggle HD PDF clarity"
-            title={hdMode ? "HD clarity on" : "HD clarity off"}
+            onClick={() => setHdMode((current) => !current)}
+            aria-label="Toggle HD mode"
+            title="Toggle HD mode"
           >
             HD
           </button>
@@ -358,7 +478,7 @@ function PdfViewer() {
                 <div
                   className={`pdf-page-wrap thunder-paper drive-pdf-page ${
                     renderThisPage ? "" : "drive-pdf-placeholder"
-                  } ${hdMode ? "pdf-hd-page" : "pdf-balanced-page"}`}
+                  }`}
                   key={`page_${pageNumber}`}
                   data-page-number={pageNumber}
                   ref={(element) => {

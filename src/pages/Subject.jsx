@@ -6,7 +6,6 @@ import Footer from "../components/Footer";
 
 const ADMIN_EMAILS = ["maxjoy146@gmail.com", "kk9327721@gmail.com"];
 const TRIAL_SECONDS = 120;
-const FREE_COUPON = "TRKK";
 
 function countFiles(folderOrSubject) {
   const directFiles = folderOrSubject?.files?.length || 0;
@@ -33,7 +32,6 @@ function Subject() {
   const [selectedSubFolder, setSelectedSubFolder] = useState(null);
   const [trialTime, setTrialTime] = useState(0);
   const [isPaid, setIsPaid] = useState(false);
-  const [coupon, setCoupon] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
 
   const decodedSem = decodeURIComponent(semesterName || "");
@@ -54,6 +52,7 @@ function Subject() {
   const trialKey = makeKey("trial");
   const paidKey = makeKey("paid");
   const trialStarted = Boolean(trialKey && localStorage.getItem(trialKey));
+  const subjectRequiresPayment = Boolean(subject?.price);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
@@ -66,7 +65,6 @@ function Subject() {
   useEffect(() => {
     setSelectedFolder(null);
     setSelectedSubFolder(null);
-    setCoupon("");
     setPaymentMessage("");
   }, [subject]);
 
@@ -117,29 +115,33 @@ function Subject() {
       return;
     }
 
+    if (trialStarted) {
+      setPaymentMessage("Your free trial has already been used for this subject.");
+      return;
+    }
+
     localStorage.setItem(trialKey, String(Date.now()));
     setTrialTime(TRIAL_SECONDS);
-    setPaymentMessage("2-minute trial started. Premium files are temporarily unlocked.");
+    setPaymentMessage("2-minute trial started. Documents are temporarily unlocked.");
   };
 
-  const handleApplyCoupon = () => {
-    if (!user || !paidKey) {
-      setPaymentMessage("Please login first to apply the coupon.");
-      return;
-    }
+  const markPaidAfterSuccessfulPayment = () => {
+    if (!user || !paidKey) return;
 
-    if (coupon.trim().toUpperCase() === FREE_COUPON) {
-      localStorage.setItem(paidKey, "true");
-      setIsPaid(true);
-      setPaymentMessage("Coupon applied successfully. Premium access unlocked.");
-      return;
-    }
-
-    setPaymentMessage("Invalid coupon code.");
+    localStorage.setItem(paidKey, "true");
+    setIsPaid(true);
+    setPaymentMessage("Payment successful. Documents are unlocked.");
   };
 
   const handlePayment = () => {
-    alert("Connect your Razorpay payment function here.");
+    // Connect Razorpay here.
+    // After Razorpay returns success, call markPaidAfterSuccessfulPayment().
+    alert(
+      "Connect Razorpay payment here. After successful payment, call markPaidAfterSuccessfulPayment()."
+    );
+
+    // Example inside Razorpay success callback:
+    // markPaidAfterSuccessfulPayment();
   };
 
   const handleMainFolderOpen = (folder) => {
@@ -171,6 +173,7 @@ function Subject() {
 
   const isAdmin = Boolean(user && ADMIN_EMAILS.includes(user.email));
   const hasAccess = Boolean(isPaid || isAdmin || trialTime > 0);
+  const documentsAreLocked = subjectRequiresPayment && !hasAccess;
   const currentFileFolder = selectedSubFolder || selectedFolder;
 
   if (!subject) {
@@ -213,21 +216,29 @@ function Subject() {
             <span className="premium-badge">⚡ Premium Access</span>
             <h2>Timer and payment option</h2>
             <p>
-              Study materials are open. Premium PYQs and solutions unlock by trial, payment,
-              admin access, or promo code.
+              Documents stay locked until successful payment, admin access, or an active 2-minute trial.
+              Login is required before starting the trial.
             </p>
           </div>
 
           <div className="premium-actions">
             <div className="timer-card">
-              <span>⏳ Trial timer</span>
-              <strong>{trialTime > 0 ? formatTime(trialTime) : "00:00"}</strong>
+              <span>⏳ Trial countdown</span>
+              <strong>
+                {trialTime > 0
+                  ? formatTime(trialTime)
+                  : !trialStarted
+                  ? formatTime(TRIAL_SECONDS)
+                  : "00:00"}
+              </strong>
               <small>
                 {trialTime > 0
-                  ? "Premium files are open now"
+                  ? "Trial running. Documents are open now."
+                  : !user
+                  ? "Login required to start trial."
                   : subject.hasTrial && !trialStarted
-                  ? "2-minute trial available"
-                  : "Trial ended or not available"}
+                  ? "2-minute trial available."
+                  : "Trial ended. Payment required."}
               </small>
             </div>
 
@@ -244,15 +255,6 @@ function Subject() {
                     Start 2-Min Free Trial
                   </button>
                 )}
-
-                <div className="coupon-row">
-                  <input
-                    placeholder="Enter promo code"
-                    value={coupon}
-                    onChange={(event) => setCoupon(event.target.value)}
-                  />
-                  <button onClick={handleApplyCoupon}>Apply</button>
-                </div>
 
                 <button className="pay-btn" onClick={handlePayment}>
                   Pay ₹{subject.price} Securely
@@ -337,7 +339,7 @@ function Subject() {
           ) : (
             <div className="file-list">
               {currentFileFolder.files.map((file, index) => {
-                const locked = file.premium && !hasAccess;
+                const locked = documentsAreLocked;
                 const viewerPath = `/viewer${encodeURI(file.url)}`;
                 const backTo = `/subject/${encodeURIComponent(decodedSem)}/${encodeURIComponent(decodedSub)}`;
 
@@ -354,11 +356,20 @@ function Subject() {
                     </div>
 
                     {locked ? (
-                      <span className="locked-label">Unlock Required</span>
+                      <span className="locked-label">
+                        {!user ? "Login Required" : "Payment Required"}
+                      </span>
                     ) : (
                       <Link
                         to={viewerPath}
-                        state={{ fileUrl: file.url, title: file.title, backTo }}
+                        state={{
+                          fileUrl: file.url,
+                          title: file.title,
+                          backTo,
+                          semesterName: decodedSem,
+                          subjectName: decodedSub,
+                          requiresPayment: subjectRequiresPayment,
+                        }}
                         className="open-btn"
                       >
                         View →

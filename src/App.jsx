@@ -17,11 +17,11 @@ function App() {
         <Route path="/semester/:semesterName" element={<Semester />} />
         <Route path="/subject/:semesterName/:subjectName" element={<Subject />} />
 
-        {/* Old links, if any, still work */}
-        <Route path="/viewer/:semesterName/:subjectName/:paperIndex" element={<PdfViewer />} />
-
-        {/* New direct public-PDF links from Subject.jsx work here */}
+        {/* Direct public-style paths used by Subject.jsx, e.g. /viewer/Sem4/SSM/PYQ/ssm-2022.pdf */}
         <Route path="/viewer/*" element={<PdfViewer />} />
+
+        {/* Old route kept for previous links. */}
+        <Route path="/viewer/:semesterName/:subjectName/:paperIndex" element={<PdfViewer />} />
       </Routes>
     </Router>
   );
