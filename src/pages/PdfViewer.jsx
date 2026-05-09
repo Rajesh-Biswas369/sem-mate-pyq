@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { Document, Page, pdfjs } from "react-pdf";
 import { pyqData } from "../data/pyqData";
 
@@ -8,118 +8,241 @@ import "react-pdf/dist/Page/TextLayer.css";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
+function safeDecode(value = "") {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function titleFromPath(path = "") {
+  const fileName = path.split("/").filter(Boolean).pop() || "PDF Document";
+  return safeDecode(fileName)
+    .replace(/\.pdf$/i, "")
+    .replace(/[-_]/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function getLegacyPaper(semesterName, subjectName, paperIndex) {
+  if (!semesterName || !subjectName || paperIndex === undefined) return null;
+
+  const decodedSemester = safeDecode(semesterName);
+  const decodedSubject = safeDecode(subjectName);
+  const semester = pyqData.find((item) => item.semester === decodedSemester);
+  const subject = semester?.subjects?.find((item) => item.name === decodedSubject);
+
+  return subject?.papers?.[Number(paperIndex)] || null;
+}
+
+function normalizeFileUrl(rawValue = "") {
+  const decoded = safeDecode(rawValue).replace(/^\/+/, "");
+  return decoded ? `/${decoded}` : "";
+}
+
 function PdfViewer() {
-  const { semesterName, subjectName, paperIndex } = useParams();
+  const params = useParams();
+  const location = useLocation();
 
-  const decodedSemester = decodeURIComponent(semesterName);
-  const decodedSubject = decodeURIComponent(subjectName);
+  const legacyPaper = useMemo(
+    () => getLegacyPaper(params.semesterName, params.subjectName, params.paperIndex),
+    [params.semesterName, params.subjectName, params.paperIndex]
+  );
 
-  // Memoize the paper lookup so it doesn't recalculate on every minor render
-  const paper = useMemo(() => {
-    const semester = pyqData.find((item) => item.semester === decodedSemester);
-    const subject = semester?.subjects.find((item) => item.name === decodedSubject);
-    return subject?.papers[Number(paperIndex)];
-  }, [decodedSemester, decodedSubject, paperIndex]);
+  const rawFileParam = params.fileUrl || params["*"] || "";
+
+  const fileUrl = useMemo(() => {
+    if (location.state?.fileUrl) return location.state.fileUrl;
+    if (legacyPaper?.url) return legacyPaper.url;
+    if (legacyPaper?.pdf) return legacyPaper.pdf;
+    return normalizeFileUrl(rawFileParam);
+  }, [legacyPaper, location.state, rawFileParam]);
+
+  const title = location.state?.title || legacyPaper?.title || titleFromPath(fileUrl);
+
+  const backTo =
+    location.state?.backTo ||
+    (params.semesterName && params.subjectName
+      ? `/subject/${encodeURIComponent(safeDecode(params.semesterName))}/${encodeURIComponent(
+          safeDecode(params.subjectName)
+        )}`
+      : "/");
 
   const [numPages, setNumPages] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [scale, setScale] = useState(1.0);
+  const [scale, setScale] = useState(1);
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window === "undefined" ? 900 : window.innerWidth
+  );
   const [showDriveScroll, setShowDriveScroll] = useState(false);
 
-  // Refs for performance optimizations (bypassing state re-renders)
-  const containerWidthRef = useRef(window.innerWidth);
   const scrollContainerRef = useRef(null);
   const thumbRef = useRef(null);
-  const hideTimeout = useRef(null);
-  const isDragging = useRef(false);
   const pageRefs = useRef([]);
+  const hideTimeoutRef = useRef(null);
+  const scrollRafRef = useRef(null);
+  const isDraggingRef = useRef(false);
+  const driveScrollVisibleRef = useRef(false);
 
-  // 1. Resize Listener (Using Ref to prevent re-renders on every pixel resize)
+  const isMobile = viewportWidth <= 768;
+  const pagesAroundCurrent = isMobile ? 1 : 2;
+
   useEffect(() => {
+    let animationFrame = null;
+
     const handleResize = () => {
-      containerWidthRef.current = window.innerWidth;
+      cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(() => {
+        setViewportWidth(window.innerWidth);
+      });
     };
+
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", handleResize);
+    };
   }, []);
 
-  // 2. Intersection Observer for ultra-smooth Page Tracking
   useEffect(() => {
-    if (!numPages) return;
+    setNumPages(null);
+    setCurrentPage(1);
+    setScale(1);
+    pageRefs.current = [];
+
+    const container = scrollContainerRef.current;
+    if (container) container.scrollTop = 0;
+  }, [fileUrl]);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(hideTimeoutRef.current);
+      cancelAnimationFrame(scrollRafRef.current);
+    };
+  }, []);
+
+  const pageWidth = useMemo(() => {
+    const sideGap = isMobile ? 24 : 96;
+    const maxBaseWidth = isMobile ? viewportWidth - sideGap : 820;
+    return Math.max(280, maxBaseWidth * scale);
+  }, [isMobile, scale, viewportWidth]);
+
+  const estimatedPageHeight = useMemo(() => {
+    // A4-like ratio. This keeps smooth scrolling even before every PDF page is rendered.
+    return Math.round(pageWidth * 1.414);
+  }, [pageWidth]);
+
+  const devicePixelRatio = useMemo(() => {
+    if (typeof window === "undefined") return 1;
+    if (isMobile) return 1;
+    return Math.min(window.devicePixelRatio || 1, 1.5);
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (!numPages || !scrollContainerRef.current) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const pageNum = Number(entry.target.getAttribute("data-page-number"));
-            setCurrentPage(pageNum);
+          if (!entry.isIntersecting) return;
+
+          const pageNumber = Number(entry.target.getAttribute("data-page-number"));
+          if (!Number.isNaN(pageNumber)) {
+            setCurrentPage((previousPage) =>
+              previousPage === pageNumber ? previousPage : pageNumber
+            );
           }
         });
       },
       {
         root: scrollContainerRef.current,
-        rootMargin: "-40% 0px -40% 0px", // Triggers when page is near the middle
+        rootMargin: "-42% 0px -42% 0px",
         threshold: 0,
       }
     );
 
-    pageRefs.current.forEach((page) => {
-      if (page) observer.observe(page);
+    pageRefs.current.forEach((pageElement) => {
+      if (pageElement) observer.observe(pageElement);
     });
 
     return () => observer.disconnect();
-  }, [numPages]);
+  }, [numPages, pageWidth]);
 
-  // 3. High-Performance Scroll Tracker (Direct DOM Manipulation)
-  const handleScroll = () => {
-    const container = scrollContainerRef.current;
-    if (!container || !thumbRef.current) return;
+  const revealDriveScrollbar = () => {
+    if (!driveScrollVisibleRef.current) {
+      driveScrollVisibleRef.current = true;
+      setShowDriveScroll(true);
+    }
 
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    const maxScroll = scrollHeight - clientHeight;
-    const progress = maxScroll > 0 ? scrollTop / maxScroll : 0;
+    clearTimeout(hideTimeoutRef.current);
 
-    // Update thumb position directly bypassing React state
-    thumbRef.current.style.top = `calc(${progress * 100}% - ${progress * 48}px)`;
-
-    setShowDriveScroll(true);
-    clearTimeout(hideTimeout.current);
-    if (!isDragging.current) {
-      hideTimeout.current = setTimeout(() => setShowDriveScroll(false), 1500);
+    if (!isDraggingRef.current) {
+      hideTimeoutRef.current = setTimeout(() => {
+        driveScrollVisibleRef.current = false;
+        setShowDriveScroll(false);
+      }, 1400);
     }
   };
 
-  // 4. Custom Drag Handler
-  const handlePointerDown = (e) => {
-    isDragging.current = true;
-    setShowDriveScroll(true);
-    clearTimeout(hideTimeout.current);
-
-    const startY = e.clientY;
+  const updateDriveThumb = () => {
     const container = scrollContainerRef.current;
+    const thumb = thumbRef.current;
+    if (!container || !thumb) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const maxScroll = Math.max(scrollHeight - clientHeight, 0);
+    const progress = maxScroll > 0 ? scrollTop / maxScroll : 0;
+
+    thumb.style.top = `calc(${progress * 100}% - ${progress * 48}px)`;
+  };
+
+  const handleScroll = () => {
+    revealDriveScrollbar();
+
+    if (scrollRafRef.current) return;
+
+    scrollRafRef.current = requestAnimationFrame(() => {
+      updateDriveThumb();
+      scrollRafRef.current = null;
+    });
+  };
+
+  const handlePointerDown = (event) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    event.preventDefault();
+    isDraggingRef.current = true;
+    revealDriveScrollbar();
+
+    const startY = event.clientY;
     const startScrollTop = container.scrollTop;
-    
-    const { scrollHeight, clientHeight } = container;
-    const maxScroll = scrollHeight - clientHeight;
-    const maxThumbMove = clientHeight - 48; 
+    const maxScroll = Math.max(container.scrollHeight - container.clientHeight, 0);
+    const maxThumbMove = Math.max(container.clientHeight - 48, 1);
 
     const onPointerMove = (moveEvent) => {
-      if (!isDragging.current) return;
-      moveEvent.preventDefault(); 
+      if (!isDraggingRef.current) return;
+      moveEvent.preventDefault();
 
       const deltaY = moveEvent.clientY - startY;
       const percentageChange = deltaY / maxThumbMove;
-      let newScrollTop = startScrollTop + (percentageChange * maxScroll);
+      const nextScrollTop = Math.min(
+        Math.max(startScrollTop + percentageChange * maxScroll, 0),
+        maxScroll
+      );
 
-      if (newScrollTop < 0) newScrollTop = 0;
-      if (newScrollTop > maxScroll) newScrollTop = maxScroll;
-
-      container.scrollTop = newScrollTop;
+      container.scrollTop = nextScrollTop;
     };
 
     const onPointerUp = () => {
-      isDragging.current = false;
-      hideTimeout.current = setTimeout(() => setShowDriveScroll(false), 1500);
+      isDraggingRef.current = false;
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = setTimeout(() => {
+        driveScrollVisibleRef.current = false;
+        setShowDriveScroll(false);
+      }, 1200);
+
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
     };
@@ -128,74 +251,137 @@ function PdfViewer() {
     window.addEventListener("pointerup", onPointerUp);
   };
 
-  if (!paper) return <div className="app electric-bg">PDF not found.</div>;
+  const shouldRenderPage = (pageNumber) => {
+    if (pageNumber === 1 || pageNumber === numPages) return true;
+    return Math.abs(pageNumber - currentPage) <= pagesAroundCurrent;
+  };
 
-  const baseWidth = containerWidthRef.current < 768 ? containerWidthRef.current * 0.95 : 800;
+  if (!fileUrl) {
+    return (
+      <div className="app electric-bg page-shell pdf-viewer-shell">
+        <Link to={backTo} className="back-btn">
+          ← Back
+        </Link>
+        <div className="empty-box">
+          <h2>PDF not found</h2>
+          <p>The file path was empty.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="app electric-bg page-shell pdf-viewer-shell" onContextMenu={(e) => e.preventDefault()}>
-      
-      <div className="topbar pdf-nav">
+    <div
+      className="app electric-bg page-shell pdf-viewer-shell drive-pdf-viewer"
+      onContextMenu={(event) => event.preventDefault()}
+    >
+      <div className="topbar pdf-nav pdf-nav-smart">
         <div className="nav-left">
-          <Link to={`/subject/${encodeURIComponent(decodedSemester)}/${encodeURIComponent(decodedSubject)}`} className="tiny-action back-btn">
+          <Link to={backTo} className="tiny-action back-btn" aria-label="Back">
             ←
           </Link>
-          <div className="page-counter">{currentPage} / {numPages || "-"}</div>
+          <div className="page-counter">
+            {currentPage} / {numPages || "-"}
+          </div>
         </div>
-        <p className="pdf-header-title">{paper.title}</p>
+
+        <p className="pdf-header-title">{title}</p>
+
         <div className="zoom-controls">
-          <button className="tiny-action" onClick={() => setScale((s) => Math.max(0.5, s - 0.2))}>−</button>
+          <button
+            className="tiny-action"
+            onClick={() => setScale((currentScale) => Math.max(0.75, currentScale - 0.15))}
+            aria-label="Zoom out"
+          >
+            −
+          </button>
           <span className="zoom-text">{Math.round(scale * 100)}%</span>
-          <button className="tiny-action" onClick={() => setScale((s) => Math.min(3.0, s + 0.2))}>+</button>
+          <button
+            className="tiny-action"
+            onClick={() => setScale((currentScale) => Math.min(2.25, currentScale + 0.15))}
+            aria-label="Zoom in"
+          >
+            +
+          </button>
         </div>
       </div>
 
-      <div 
-        className="pdf-stage pdf-scroll-area custom-hide-scrollbar" 
+      <main
+        className="pdf-stage pdf-scroll-area custom-hide-scrollbar drive-pdf-scroll-area"
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        style={{ height: "calc(100vh - 120px)", overflowY: "auto", position: "relative" }}
       >
         <Document
-          file={paper.pdf}
-          onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+          file={fileUrl}
+          onLoadSuccess={({ numPages: loadedPages }) => {
+            setNumPages(loadedPages);
+            pageRefs.current = new Array(loadedPages);
+            requestAnimationFrame(updateDriveThumb);
+          }}
           loading={<p className="pdf-status">Loading PDF perfectly...</p>}
-          error={<p className="pdf-status">Failed to load PDF file.</p>}
-        >
-          {numPages > 0 && Array.from(new Array(numPages), (_, index) => (
-            <div 
-              className="pdf-page-wrap thunder-paper" 
-              key={`page_${index + 1}`} 
-              data-page-number={index + 1}
-              ref={(el) => (pageRefs.current[index] = el)} // Attach ref for Observer
-            >
-              <Page
-                pageNumber={index + 1}
-                width={baseWidth * scale}
-                renderTextLayer={false}
-                renderAnnotationLayer={false}
-                devicePixelRatio={Math.max(window.devicePixelRatio || 1, 2)}
-              />
+          error={
+            <div className="empty-box">
+              <h2>Failed to load PDF</h2>
+              <p>Check that this file exists inside public{fileUrl}</p>
             </div>
-          ))}
+          }
+        >
+          {numPages > 0 &&
+            Array.from({ length: numPages }, (_, index) => {
+              const pageNumber = index + 1;
+              const renderThisPage = shouldRenderPage(pageNumber);
+
+              return (
+                <div
+                  className={`pdf-page-wrap thunder-paper drive-pdf-page ${
+                    renderThisPage ? "" : "drive-pdf-placeholder"
+                  }`}
+                  key={`page_${pageNumber}`}
+                  data-page-number={pageNumber}
+                  ref={(element) => {
+                    pageRefs.current[index] = element;
+                  }}
+                  style={{ minHeight: estimatedPageHeight }}
+                >
+                  {renderThisPage ? (
+                    <Page
+                      pageNumber={pageNumber}
+                      width={pageWidth}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                      devicePixelRatio={devicePixelRatio}
+                      loading={<div className="pdf-page-loading">Loading page {pageNumber}...</div>}
+                    />
+                  ) : (
+                    <div className="pdf-placeholder-content">Page {pageNumber}</div>
+                  )}
+                </div>
+              );
+            })}
         </Document>
-      </div>
+      </main>
 
       <div className={`drive-scrollbar-track ${showDriveScroll ? "visible" : ""}`}>
         <div
-          ref={thumbRef} // Direct DOM reference
+          ref={thumbRef}
           className="drive-scrollbar-thumb"
           onPointerDown={handlePointerDown}
+          role="slider"
+          aria-label="PDF scroll position"
+          aria-valuemin="1"
+          aria-valuemax={numPages || 1}
+          aria-valuenow={currentPage}
         >
           <div className="thumb-lines">
-            <span></span><span></span><span></span>
+            <span></span>
+            <span></span>
+            <span></span>
           </div>
           <div className="thumb-bubble">
             {currentPage} / {numPages || "-"}
           </div>
         </div>
       </div>
-
     </div>
   );
 }

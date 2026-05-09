@@ -1,22 +1,22 @@
 export const updatesData = [
   {
-    title: "DSP 2026 Question & Solutions Uploaded 🚀",
+    title: "SSM Folders Updated ✅",
     description:
-      "The 2026 question paper and detailed solutions for Digital Signal Processing have just been added to Semester 4.",
+      "Semester 4 → Sequential Systems & Microprocessor now has Study Materials, PYQs, and Solutions folders.",
+    tag: "Updated",
+    date: "Latest",
+  },
+  {
+    title: "SSM Materials Subfolders Added 📚",
+    description:
+      "Study Materials now includes Microprocessor and Sequential System folders with phase-wise documents and roadmaps.",
     tag: "New",
     date: "Just Now",
   },
   {
-    title: "DSP PYQ Papers & Solutions Uploaded up to 2025",
+    title: "Upcoming Subject: Instrumentation",
     description:
-      "Digital Signal Processing question papers and detailed solutions up to 2025 are available inside Semester 4 → Digital Signal Processing.",
-    tag: "Available",
-    date: "Latest",
-  },
-  {
-    title: "Upcoming Subject: Sequential Systems & Microprocessor",
-    description:
-      "Sequential Systems & Microprocessor PYQs and solutions will be uploaded next. Keep checking the Latest Activity section for updates.",
+      "Instrumentation materials, PYQs, and solutions will be added next.",
     tag: "Coming Soon",
     date: "Soon",
   },

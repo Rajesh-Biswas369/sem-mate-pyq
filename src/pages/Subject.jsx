@@ -1,267 +1,376 @@
-import Footer from "../components/Footer";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
 import { pyqData } from "../data/pyqData";
 import { auth } from "../firebase";
+import Footer from "../components/Footer";
 
-const API_URL = "https://sem-mate-pyq.onrender.com";
+const ADMIN_EMAILS = ["maxjoy146@gmail.com", "kk9327721@gmail.com"];
+const TRIAL_SECONDS = 120;
+const FREE_COUPON = "TRKK";
 
-// Your owner/admin Gmail IDs.
-const ADMIN_EMAILS = ["maxjoy146@gmail.com"];
+function countFiles(folderOrSubject) {
+  const directFiles = folderOrSubject?.files?.length || 0;
+  const nestedFiles =
+    folderOrSubject?.subFolders?.reduce(
+      (total, subFolder) => total + countFiles(subFolder),
+      0
+    ) || 0;
+  const subjectFiles =
+    folderOrSubject?.folders?.reduce(
+      (total, folder) => total + countFiles(folder),
+      0
+    ) || 0;
+
+  return directFiles + nestedFiles + subjectFiles;
+}
 
 function Subject() {
   const { semesterName, subjectName } = useParams();
   const navigate = useNavigate();
 
-  const decodedSemester = decodeURIComponent(semesterName);
-  const decodedSubject = decodeURIComponent(subjectName);
-
-  const semester = pyqData.find((item) => item.semester === decodedSemester);
-  const subject = semester?.subjects.find((item) => item.name === decodedSubject);
-
-  // 1. Add Firebase User State
   const [user, setUser] = useState(null);
-  const [isAuthLoaded, setIsAuthLoaded] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState(null);
+  const [selectedSubFolder, setSelectedSubFolder] = useState(null);
+  const [trialTime, setTrialTime] = useState(0);
+  const [isPaid, setIsPaid] = useState(false);
+  const [coupon, setCoupon] = useState("");
+  const [paymentMessage, setPaymentMessage] = useState("");
 
-  const [isUnlocked, setIsUnlocked] = useState(false);
-  const [couponCode, setCouponCode] = useState("");
-  const [finalPrice, setFinalPrice] = useState(10);
-  const [message, setMessage] = useState("");
-  const [isPaying, setIsPaying] = useState(false);
+  const decodedSem = decodeURIComponent(semesterName || "");
+  const decodedSub = decodeURIComponent(subjectName || "");
 
-  // 2. Listen for Login State
+  const subject = useMemo(() => {
+    const semester = pyqData.find((item) => item.semester === decodedSem);
+    return semester?.subjects.find((item) => item.name === decodedSub);
+  }, [decodedSem, decodedSub]);
+
+  const totalFiles = useMemo(() => countFiles(subject), [subject]);
+
+  const makeKey = (prefix) => {
+    if (!user?.email || !subject?.name) return "";
+    return `${prefix}_${user.email}_${subject.name}`.replace(/\s+/g, "");
+  };
+
+  const trialKey = makeKey("trial");
+  const paidKey = makeKey("paid");
+  const trialStarted = Boolean(trialKey && localStorage.getItem(trialKey));
+
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
       setUser(currentUser);
-      setIsAuthLoaded(true);
     });
+
     return () => unsubscribe();
   }, []);
 
-  // 3. Handle LocalStorage for Paid Subjects securely
   useEffect(() => {
-    if (user) {
-      const storageKey = `paid_${user.email}_${decodedSemester}_${decodedSubject}`
-        .replace(/\s+/g, "_")
-        .toLowerCase();
-      
-      const paidStatus = localStorage.getItem(storageKey);
-      setIsUnlocked(paidStatus === "true");
+    setSelectedFolder(null);
+    setSelectedSubFolder(null);
+    setCoupon("");
+    setPaymentMessage("");
+  }, [subject]);
+
+  useEffect(() => {
+    if (!user || !subject) {
+      setIsPaid(false);
+      setTrialTime(0);
+      return;
     }
-  }, [user, decodedSemester, decodedSubject]);
+
+    const storedPaid = localStorage.getItem(paidKey) === "true";
+    setIsPaid(storedPaid);
+
+    if (!subject.hasTrial || !trialKey) {
+      setTrialTime(0);
+      return;
+    }
+
+    const storedStart = Number(localStorage.getItem(trialKey));
+    if (!storedStart) {
+      setTrialTime(0);
+      return;
+    }
+
+    const elapsed = Math.floor((Date.now() - storedStart) / 1000);
+    setTrialTime(Math.max(TRIAL_SECONDS - elapsed, 0));
+  }, [user, subject, paidKey, trialKey]);
+
+  useEffect(() => {
+    if (trialTime <= 0) return undefined;
+
+    const timer = setInterval(() => {
+      setTrialTime((previousTime) => Math.max(previousTime - 1, 0));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [trialTime]);
+
+  const formatTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  };
+
+  const startTrial = () => {
+    if (!user || !subject || !trialKey) {
+      setPaymentMessage("Please login first to start the trial.");
+      return;
+    }
+
+    localStorage.setItem(trialKey, String(Date.now()));
+    setTrialTime(TRIAL_SECONDS);
+    setPaymentMessage("2-minute trial started. Premium files are temporarily unlocked.");
+  };
+
+  const handleApplyCoupon = () => {
+    if (!user || !paidKey) {
+      setPaymentMessage("Please login first to apply the coupon.");
+      return;
+    }
+
+    if (coupon.trim().toUpperCase() === FREE_COUPON) {
+      localStorage.setItem(paidKey, "true");
+      setIsPaid(true);
+      setPaymentMessage("Coupon applied successfully. Premium access unlocked.");
+      return;
+    }
+
+    setPaymentMessage("Invalid coupon code.");
+  };
+
+  const handlePayment = () => {
+    alert("Connect your Razorpay payment function here.");
+  };
+
+  const handleMainFolderOpen = (folder) => {
+    setSelectedFolder(folder);
+    setSelectedSubFolder(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleSubFolderOpen = (subFolder) => {
+    setSelectedSubFolder(subFolder);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleBack = () => {
+    if (selectedSubFolder) {
+      setSelectedSubFolder(null);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    if (selectedFolder) {
+      setSelectedFolder(null);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    navigate(-1);
+  };
+
+  const isAdmin = Boolean(user && ADMIN_EMAILS.includes(user.email));
+  const hasAccess = Boolean(isPaid || isAdmin || trialTime > 0);
+  const currentFileFolder = selectedSubFolder || selectedFolder;
 
   if (!subject) {
     return (
-      <div className="app electric-bg page-shell">
-        <h1>Subject not found.</h1>
-        <Link to="/" className="back">← Back Home</Link>
+      <div className="app electric-bg subject-page">
+        <button onClick={() => navigate(-1)} className="back-btn">
+          ← Back
+        </button>
+        <section className="empty-box">
+          <h2>Subject Not Found</h2>
+          <p>Please check the subject name in your URL.</p>
+        </section>
       </div>
     );
   }
 
-  // Define Access Rules
-  const isAdmin = user ? ADMIN_EMAILS.includes(user.email) : false;
-  const isPaidSubject = subject.name === "Digital Signal Processing";
-  const isGuest = !user; 
-
-  // They have access to the PREMIUM subject if they bought it or are admin
-  const hasPremiumAccess = isUnlocked || isAdmin;
-
-  // --- Payment Logic ---
-  function applyCoupon() {
-    const typedCoupon = couponCode.trim().toUpperCase();
-    const storageKey = `paid_${user?.email}_${decodedSemester}_${decodedSubject}`.replace(/\s+/g, "_").toLowerCase();
-
-    if (typedCoupon === "SECBJUEE") {
-      localStorage.setItem(storageKey, "true");
-      setIsUnlocked(true);
-      setFinalPrice(0);
-      setMessage("Feedback access unlocked successfully. DSP PDFs are now free for you.");
-    } else if (typedCoupon === "EARLY50") {
-      setFinalPrice(5);
-      setMessage("Coupon applied successfully. DSP access price is now ₹5.");
-    } else if (typedCoupon === "") {
-      setFinalPrice(10);
-      setMessage("Enter a coupon code first.");
-    } else {
-      setFinalPrice(10);
-      setMessage("Invalid coupon. Price remains ₹10.");
-    }
-  }
-
-  async function handlePayment() {
-    // ... (Keep your exact existing handlePayment logic here) ...
-    // Just ensure it uses `user.email` and `user.displayName` instead of `auth.currentUser`
-    try {
-      if (!window.Razorpay) {
-        setMessage("Razorpay script not loaded. Check index.html.");
-        return;
-      }
-
-      setIsPaying(true);
-      setMessage("Creating payment order...");
-
-      const orderResponse = await fetch(`${API_URL}/api/create-order`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subjectName: subject.name, couponCode }),
-      });
-
-      const orderData = await orderResponse.json();
-
-      if (!orderResponse.ok || !orderData.success) {
-        setMessage(orderData.message || "Could not create payment order.");
-        setIsPaying(false);
-        return;
-      }
-
-      const options = {
-        key: orderData.key,
-        amount: orderData.order.amount,
-        currency: orderData.order.currency,
-        name: "JU EE PYQ Solutions",
-        description: `${subject.name} Access`,
-        order_id: orderData.order.id,
-
-        handler: async function (response) {
-          try {
-            setMessage("Payment done. Verifying...");
-            const verifyResponse = await fetch(`${API_URL}/api/verify-payment`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...response, subjectName: subject.name }),
-            });
-
-            const verifyData = await verifyResponse.json();
-
-            if (verifyResponse.ok && verifyData.success) {
-              const storageKey = `paid_${user?.email}_${decodedSemester}_${decodedSubject}`.replace(/\s+/g, "_").toLowerCase();
-              localStorage.setItem(storageKey, "true");
-              setIsUnlocked(true);
-              setMessage("Payment successful. DSP PDFs unlocked.");
-            } else {
-              setMessage(verifyData.message || "Payment verification failed.");
-            }
-          } catch (verifyError) {
-            setMessage(`Verification error: ${verifyError.message}`);
-          } finally {
-            setIsPaying(false);
-          }
-        },
-
-        prefill: {
-          name: user?.displayName || "Student",
-          email: user?.email || "student@example.com",
-          contact: "9999999999",
-        },
-        theme: { color: "#facc15" },
-        modal: {
-          ondismiss: function () {
-            setIsPaying(false);
-            setMessage("Payment popup closed.");
-          },
-        },
-      };
-
-      const paymentObject = new window.Razorpay(options);
-      paymentObject.open();
-    } catch (error) {
-      setMessage(`Payment error: ${error.message}`);
-      setIsPaying(false);
-    }
-  }
-
-  // Prevent UI flashing while checking Firebase login status
-  if (!isAuthLoaded) return null;
-
   return (
-    <div className="app electric-bg page-shell">
+    <div className="app electric-bg subject-page">
       <div className="storm-layer"></div>
       <div className="real-lightning bolt-1"></div>
       <div className="real-lightning bolt-2"></div>
       <div className="real-lightning bolt-3"></div>
 
-      <Link to={`/semester/${encodeURIComponent(decodedSemester)}`} className="back">
-        ← Back
-      </Link>
+      <header className="subject-hero glass-panel">
+        <button onClick={handleBack} className="back-btn">
+          ← Back
+        </button>
 
-      <header className="topbar electric-title">
+        <p className="subject-kicker">{decodedSem}</p>
         <h1>{subject.name}</h1>
-        <p>{subject.code}</p>
-        <p>Choose a PYQ solution PDF</p>
+        <h3>{subject.code}</h3>
+        <p>
+          {subject.folders?.length || 0} folders • {totalFiles} files available
+        </p>
       </header>
 
-      {/* Guest Mode Warning Banner */}
-      {isGuest && (
-        <section className="payment-panel" style={{ border: '1px solid #ef4444', boxShadow: '0 0 20px rgba(239, 68, 68, 0.2)' }}>
-          <div className="payment-icon" style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)' }}>🔒</div>
-          <h2 style={{ backgroundImage: 'linear-gradient(180deg, #fca5a5, #ef4444, #b91c1c)' }}>Login Required</h2>
-          <p>You are currently browsing in Guest Mode.</p>
-          <p className="payment-small" style={{ color: '#fca5a5' }}>Please log in to view and download these documents.</p>
-          <button className="pay-button" onClick={() => navigate('/login')} style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: 'white' }}>
-            Go to Login ⚡
-          </button>
-        </section>
-      )}
-
-      {/* Paid Subject Panel (Only shows if logged in AND hasn't paid) */}
-      {!isGuest && isPaidSubject && !hasPremiumAccess && (
-        <section className="payment-panel">
-          <div className="payment-icon">⚡</div>
-          <h2>Unlock DSP Access</h2>
-          <p>Price: <strong>{finalPrice === 0 ? "Free" : `₹${finalPrice}`}</strong></p>
-          <p className="payment-small">Have an access or discount code? Apply it below.</p>
-          <div className="payment-row">
-            <input
-              type="text"
-              placeholder="Enter coupon code"
-              value={couponCode}
-              onChange={(e) => setCouponCode(e.target.value)}
-            />
-            <button type="button" onClick={applyCoupon}>Apply</button>
+      {subject.price && (
+        <section className={`premium-control-panel ${hasAccess ? "access-active" : ""}`}>
+          <div className="premium-copy">
+            <span className="premium-badge">⚡ Premium Access</span>
+            <h2>Timer and payment option</h2>
+            <p>
+              Study materials are open. Premium PYQs and solutions unlock by trial, payment,
+              admin access, or promo code.
+            </p>
           </div>
-          {finalPrice > 0 && (
-            <button type="button" className="pay-button" onClick={handlePayment} disabled={isPaying}>
-              {isPaying ? "Processing..." : `Pay ₹${finalPrice} and Unlock`}
-            </button>
-          )}
-          {message && <p className="payment-message">{message}</p>}
-        </section>
-      )}
 
-      {/* Success Panel */}
-      {!isGuest && isPaidSubject && hasPremiumAccess && (
-        <section className="payment-success-panel">
-          <p>{isAdmin ? "✅ Admin access granted. You can view all DSP PDFs." : "✅ DSP unlocked. You can now view all PDFs."}</p>
-        </section>
-      )}
-
-      {/* The List of PDFs */}
-      <section className="paper-list">
-        {subject.papers.map((paper, index) => {
-          // A paper is locked if the user is a guest OR if it's a paid subject they haven't bought
-          const isPaperLocked = isGuest || (isPaidSubject && !hasPremiumAccess);
-
-          return (
-            <div className={`paper-card electric-card ${isPaperLocked ? "locked-paper" : ""}`} key={`${paper.title}-${index}`}>
-              <div>
-                <h3>{isPaperLocked && "🔒 "} {paper.title}</h3>
-                <p>Year: {paper.year} | Type: {paper.type}</p>
-              </div>
-
-              {isPaperLocked ? (
-                <span style={{ color: isGuest ? '#fca5a5' : '#fde68a' }}>
-                  {isGuest ? "Login to View" : "Premium"}
-                </span>
-              ) : (
-                <Link to={`/viewer/${encodeURIComponent(decodedSemester)}/${encodeURIComponent(decodedSubject)}/${index}`}>
-                  Open Viewer →
-                </Link>
-              )}
+          <div className="premium-actions">
+            <div className="timer-card">
+              <span>⏳ Trial timer</span>
+              <strong>{trialTime > 0 ? formatTime(trialTime) : "00:00"}</strong>
+              <small>
+                {trialTime > 0
+                  ? "Premium files are open now"
+                  : subject.hasTrial && !trialStarted
+                  ? "2-minute trial available"
+                  : "Trial ended or not available"}
+              </small>
             </div>
-          );
-        })}
-      </section>
+
+            {!user ? (
+              <button className="pay-btn" onClick={() => navigate("/login")}>
+                Login to Continue ⚡
+              </button>
+            ) : hasAccess ? (
+              <div className="access-chip">✅ Access Active</div>
+            ) : (
+              <>
+                {subject.hasTrial && !trialStarted && (
+                  <button className="pay-btn trial-btn" onClick={startTrial}>
+                    Start 2-Min Free Trial
+                  </button>
+                )}
+
+                <div className="coupon-row">
+                  <input
+                    placeholder="Enter promo code"
+                    value={coupon}
+                    onChange={(event) => setCoupon(event.target.value)}
+                  />
+                  <button onClick={handleApplyCoupon}>Apply</button>
+                </div>
+
+                <button className="pay-btn" onClick={handlePayment}>
+                  Pay ₹{subject.price} Securely
+                </button>
+              </>
+            )}
+
+            {paymentMessage && <p className="payment-message">{paymentMessage}</p>}
+          </div>
+        </section>
+      )}
+
+      {!selectedFolder && (
+        <>
+          <h2 className="section-title">📁 Select Folder</h2>
+
+          <div className="folder-grid">
+            {subject.folders?.map((folder) => (
+              <button
+                type="button"
+                key={folder.folderName}
+                className="folder-card"
+                onClick={() => handleMainFolderOpen(folder)}
+              >
+                <span className="folder-icon">{folder.icon}</span>
+                <div>
+                  <h2>{folder.folderName}</h2>
+                  <p>{countFiles(folder)} files available</p>
+                  <strong>Open Folder →</strong>
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {selectedFolder?.subFolders && !selectedSubFolder && (
+        <section className="file-view">
+          <button className="folder-back-btn" onClick={() => setSelectedFolder(null)}>
+            ← Back to main folders
+          </button>
+
+          <h2 className="section-title">
+            {selectedFolder.icon} {selectedFolder.folderName}
+          </h2>
+
+          <div className="folder-grid subfolder-grid">
+            {selectedFolder.subFolders.map((subFolder) => (
+              <button
+                type="button"
+                key={subFolder.folderName}
+                className="folder-card"
+                onClick={() => handleSubFolderOpen(subFolder)}
+              >
+                <span className="folder-icon">{subFolder.icon}</span>
+                <div>
+                  <h2>{subFolder.folderName}</h2>
+                  <p>{countFiles(subFolder)} files available</p>
+                  <strong>Open Folder →</strong>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {currentFileFolder?.files && (
+        <section className="file-view">
+          <button className="folder-back-btn" onClick={handleBack}>
+            ← Back
+          </button>
+
+          <h2 className="section-title">
+            {currentFileFolder.icon} {currentFileFolder.folderName}
+          </h2>
+
+          {currentFileFolder.files.length === 0 ? (
+            <div className="empty-box">
+              <h3>No files uploaded yet</h3>
+              <p>Add PDFs inside this folder in pyqData.js.</p>
+            </div>
+          ) : (
+            <div className="file-list">
+              {currentFileFolder.files.map((file, index) => {
+                const locked = file.premium && !hasAccess;
+                const viewerPath = `/viewer${encodeURI(file.url)}`;
+                const backTo = `/subject/${encodeURIComponent(decodedSem)}/${encodeURIComponent(decodedSub)}`;
+
+                return (
+                  <div
+                    key={`${file.title}-${index}`}
+                    className={`file-card ${locked ? "locked" : ""}`}
+                  >
+                    <div className="file-info">
+                      <h3>{locked ? "🔒" : "📄"} {file.title}</h3>
+                      <p>
+                        {file.year} | {file.topic || currentFileFolder.folderName}
+                      </p>
+                    </div>
+
+                    {locked ? (
+                      <span className="locked-label">Unlock Required</span>
+                    ) : (
+                      <Link
+                        to={viewerPath}
+                        state={{ fileUrl: file.url, title: file.title, backTo }}
+                        className="open-btn"
+                      >
+                        View →
+                      </Link>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
 
       <Footer />
     </div>

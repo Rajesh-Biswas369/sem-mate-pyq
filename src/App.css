@@ -1378,3 +1378,737 @@ a {
     scroll-behavior: auto !important;
   }
 }
+/* =========================================
+   SUBJECT PAGE: FOLDERS + PREMIUM PANEL
+   Added for Materials / PYQ / Solutions cards
+========================================= */
+
+.subject-page {
+  max-width: 1280px;
+  margin: 0 auto;
+  overflow-x: hidden;
+}
+
+.subject-hero {
+  max-width: 960px;
+  margin: 0 auto 28px;
+  padding: 34px 28px;
+  border-radius: 30px;
+  text-align: center;
+}
+
+.subject-hero .back-btn {
+  display: inline-flex;
+  margin: 0 0 20px;
+}
+
+.subject-kicker {
+  color: #fde68a;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.subject-hero h1 {
+  font-size: clamp(2.1rem, 5vw, 3.7rem);
+  line-height: 1.05;
+  margin-bottom: 12px;
+  font-weight: 1000;
+  color: #f8fafc;
+}
+
+.subject-hero h3 {
+  color: #dbeafe;
+  font-size: 1.1rem;
+  margin-bottom: 12px;
+}
+
+.subject-hero p {
+  color: #cbd5e1;
+}
+
+.back-btn,
+.folder-back-btn {
+  border: none;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 11px 18px;
+  color: #111827;
+  background: linear-gradient(135deg, #fde68a, #facc15, #f59e0b);
+  font-weight: 950;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.24);
+}
+
+.folder-back-btn {
+  margin-bottom: 24px;
+}
+
+.premium-control-panel {
+  max-width: 1050px;
+  margin: 0 auto 42px;
+  padding: 26px;
+  border-radius: 30px;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 22px;
+  align-items: center;
+  border: 1px solid rgba(250, 204, 21, 0.24);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.76), rgba(7, 12, 24, 0.9)),
+    radial-gradient(circle at top right, rgba(250, 204, 21, 0.14), transparent 42%);
+  box-shadow:
+    0 18px 55px rgba(0, 0, 0, 0.38),
+    0 0 28px rgba(250, 204, 21, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.premium-control-panel.access-active {
+  border-color: rgba(34, 197, 94, 0.36);
+}
+
+.premium-badge {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 12px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  color: #111827;
+  background: linear-gradient(135deg, #fde68a, #facc15);
+  font-size: 0.78rem;
+  font-weight: 1000;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+.premium-copy h2 {
+  font-size: clamp(1.6rem, 3vw, 2.35rem);
+  color: #f8fafc;
+  margin-bottom: 10px;
+}
+
+.premium-copy p {
+  color: #cbd5e1;
+  line-height: 1.65;
+}
+
+.premium-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.timer-card {
+  padding: 18px;
+  border-radius: 24px;
+  text-align: center;
+  border: 1px solid rgba(250, 204, 21, 0.18);
+  background: rgba(2, 6, 23, 0.54);
+}
+
+.timer-card span,
+.timer-card small {
+  display: block;
+  color: #cbd5e1;
+  font-weight: 800;
+}
+
+.timer-card strong {
+  display: block;
+  color: #fde68a;
+  font-size: 2.3rem;
+  letter-spacing: 2px;
+  margin: 6px 0;
+}
+
+.pay-btn,
+.trial-btn {
+  border: none;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 15px 22px;
+  color: #111827;
+  background: linear-gradient(135deg, #fff7c2, #facc15, #f59e0b);
+  font-size: 1rem;
+  font-weight: 1000;
+  box-shadow:
+    0 0 22px rgba(250, 204, 21, 0.22),
+    0 12px 26px rgba(0, 0, 0, 0.25);
+}
+
+.pay-btn:hover,
+.trial-btn:hover,
+.back-btn:hover,
+.folder-back-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+
+.coupon-row {
+  display: flex;
+  gap: 10px;
+}
+
+.coupon-row input {
+  min-width: 0;
+  flex: 1;
+  padding: 14px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(250, 204, 21, 0.22);
+  outline: none;
+  color: #f8fafc;
+  background: rgba(2, 6, 23, 0.72);
+}
+
+.coupon-row button {
+  border: none;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 12px 18px;
+  color: #111827;
+  background: linear-gradient(135deg, #fde68a, #facc15);
+  font-weight: 950;
+}
+
+.access-chip {
+  padding: 15px 18px;
+  border-radius: 999px;
+  color: #dcfce7;
+  text-align: center;
+  font-weight: 1000;
+  background: rgba(22, 163, 74, 0.16);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.section-title {
+  max-width: 1050px;
+  margin: 0 auto 28px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(250, 204, 21, 0.22);
+  text-align: center;
+  color: #fde68a;
+  font-size: clamp(1.7rem, 4vw, 2.7rem);
+  font-weight: 1000;
+}
+
+.folder-grid {
+  max-width: 1050px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.folder-card {
+  min-height: 215px;
+  width: 100%;
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 28px;
+  text-align: left;
+  cursor: pointer;
+  color: #f8fafc;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.72), rgba(7, 12, 24, 0.9)),
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.06), transparent 42%);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.34);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.folder-card:hover {
+  transform: translateY(-7px);
+  border-color: rgba(250, 204, 21, 0.45);
+  box-shadow:
+    0 18px 46px rgba(0, 0, 0, 0.42),
+    0 0 26px rgba(250, 204, 21, 0.08);
+}
+
+.folder-icon {
+  font-size: 3.6rem;
+  line-height: 1;
+  margin-bottom: 20px;
+}
+
+.folder-card h2 {
+  font-size: 1.55rem;
+  margin-bottom: 10px;
+}
+
+.folder-card p {
+  color: #cbd5e1;
+  margin-bottom: 14px;
+}
+
+.folder-card strong {
+  color: #fde68a;
+  font-size: 1rem;
+}
+
+.file-view,
+.file-list {
+  max-width: 1050px;
+  margin: 0 auto;
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.file-card {
+  padding: 24px 26px;
+  border-radius: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.72), rgba(7, 12, 24, 0.9)),
+    radial-gradient(circle at left top, rgba(255, 255, 255, 0.05), transparent 42%);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+.file-card.locked {
+  opacity: 0.7;
+  filter: saturate(0.75);
+}
+
+.file-info h3 {
+  color: #f8fafc;
+  font-size: 1.25rem;
+  margin-bottom: 8px;
+}
+
+.file-info p {
+  color: #cbd5e1;
+}
+
+.open-btn,
+.locked-label {
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 950;
+}
+
+.open-btn {
+  color: #111827;
+  background: linear-gradient(135deg, #fde68a, #facc15, #f59e0b);
+}
+
+.locked-label {
+  color: #fde68a;
+  border: 1px solid rgba(250, 204, 21, 0.24);
+  background: rgba(250, 204, 21, 0.08);
+}
+
+.empty-box {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 34px;
+  border-radius: 28px;
+  text-align: center;
+  border: 1px dashed rgba(250, 204, 21, 0.34);
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.empty-box h2,
+.empty-box h3 {
+  color: #fde68a;
+  margin-bottom: 10px;
+}
+
+.empty-box p {
+  color: #cbd5e1;
+}
+
+@media (max-width: 900px) {
+  .premium-control-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .folder-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .folder-card {
+    min-height: 175px;
+  }
+}
+
+@media (max-width: 600px) {
+  .subject-hero {
+    padding: 28px 18px;
+  }
+
+  .premium-control-panel {
+    padding: 20px;
+    border-radius: 24px;
+  }
+
+  .coupon-row {
+    flex-direction: column;
+  }
+
+  .file-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .open-btn,
+  .locked-label,
+  .pay-btn,
+  .trial-btn {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* =========================================
+   GOOGLE DRIVE-LIKE PDF VIEWER PATCH
+   Additions for src/pages/PdfViewer.jsx
+========================================= */
+
+.drive-pdf-viewer {
+  max-width: none;
+  padding-top: 14px;
+  overflow: hidden;
+}
+
+.pdf-nav-smart {
+  max-width: 1180px;
+  margin: 0 auto 14px;
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 116px;
+}
+
+.page-counter {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.58);
+  color: #fde68a;
+  font-weight: 900;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.drive-pdf-scroll-area {
+  height: calc(100vh - 92px);
+  overflow-y: auto;
+  overflow-x: auto;
+  position: relative;
+  justify-content: flex-start;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.drive-pdf-scroll-area .react-pdf__Document {
+  width: max-content;
+  min-width: 100%;
+  margin: 0 auto;
+}
+
+.drive-pdf-page {
+  display: grid;
+  place-items: center;
+  margin: 0 auto 22px;
+  background: #ffffff;
+  contain: layout paint;
+}
+
+.drive-pdf-placeholder {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(241, 245, 249, 0.96));
+}
+
+.pdf-placeholder-content,
+.pdf-page-loading {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  width: 100%;
+  color: #64748b;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+}
+
+.drive-pdf-page canvas {
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .drive-pdf-viewer {
+    padding: 8px 8px 0;
+  }
+
+  .pdf-nav-smart {
+    position: sticky;
+    top: 6px;
+    z-index: 80;
+    margin-bottom: 8px;
+    padding: 8px;
+    gap: 8px;
+    border-radius: 18px;
+  }
+
+  .pdf-header-title {
+    font-size: 12px;
+    max-width: 36vw;
+  }
+
+  .nav-left {
+    min-width: auto;
+    gap: 6px;
+  }
+
+  .page-counter {
+    padding: 7px 9px;
+    font-size: 12px;
+  }
+
+  .zoom-controls {
+    gap: 4px;
+    padding: 3px 5px;
+  }
+
+  .zoom-text {
+    min-width: 34px;
+    font-size: 11px;
+  }
+
+  .tiny-action {
+    width: 38px;
+    height: 38px;
+    font-size: 17px;
+  }
+
+  .drive-pdf-scroll-area {
+    height: calc(100vh - 76px);
+    padding: 8px 0 76px;
+  }
+
+  .drive-pdf-page {
+    margin-bottom: 14px;
+    border-radius: 7px;
+  }
+
+  .drive-scrollbar-track {
+    top: 78px;
+    bottom: 24px;
+    right: 6px;
+    width: 24px;
+  }
+
+  .drive-scrollbar-thumb {
+    width: 22px;
+    height: 46px;
+  }
+
+  .thumb-bubble {
+    right: 32px;
+    font-size: 12px;
+    padding: 5px 11px;
+  }
+}
+
+/* =========================================
+   MOBILE PERFORMANCE PATCH
+   Desktop keeps the full electric vibe.
+   Mobile gets a lighter, smoother version.
+========================================= */
+
+@media (max-width: 768px) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-height: 100%;
+    overflow-x: hidden !important;
+    scroll-behavior: auto !important;
+  }
+
+  .app,
+  .page-shell,
+  .electric-bg {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden !important;
+  }
+
+  /* Stop the heaviest continuous background animations on phones */
+  .storm-layer,
+  .storm-layer::before,
+  .storm-layer::after,
+  .real-lightning,
+  .real-lightning::before,
+  .real-lightning::after,
+  .electric-bg::after {
+    display: none !important;
+    animation: none !important;
+    filter: none !important;
+    opacity: 0 !important;
+  }
+
+  /* Keep a premium background, but without animated storm flashes */
+  .electric-bg {
+    background:
+      radial-gradient(circle at 20% 0%, rgba(59, 130, 246, 0.12), transparent 28%),
+      radial-gradient(circle at 85% 10%, rgba(139, 92, 246, 0.10), transparent 32%),
+      linear-gradient(180deg, #04070f 0%, #07111f 48%, #060b14 100%) !important;
+  }
+
+  .electric-bg::before {
+    opacity: 0.06 !important;
+    animation: none !important;
+    filter: none !important;
+    background-size: 84px 84px, 100% 100% !important;
+  }
+
+  /* Disable decorative sweeps/glows that keep repainting cards */
+  .electric-card::before,
+  .electric-card::after,
+  .folder-card::before,
+  .folder-card::after,
+  .file-card::before,
+  .file-card::after {
+    display: none !important;
+    animation: none !important;
+  }
+
+  .topbar h1,
+  .live-pill span,
+  .login-logo span {
+    animation: none !important;
+    filter: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Remove expensive glass blur on mobile */
+  .electric-card,
+  .glass-panel,
+  .login-card,
+  .footer-card,
+  .updates-section,
+  .payment-panel,
+  .payment-success-panel,
+  .premium-control-panel,
+  .folder-card,
+  .file-card,
+  .user-floating-card,
+  .pdf-nav,
+  .tiny-action,
+  .drive-scrollbar-thumb {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28) !important;
+  }
+
+  .electric-card:hover,
+  .folder-card:hover,
+  .file-card:hover,
+  .pay-btn:hover,
+  .trial-btn:hover,
+  .back-btn:hover,
+  .folder-back-btn:hover,
+  .google-login-btn:hover,
+  .payment-row button:hover,
+  .pay-button:hover,
+  .payment-success-panel button:hover {
+    transform: none !important;
+    filter: none !important;
+  }
+
+  /* Phone-friendly spacing */
+  .app {
+    padding: 18px 14px !important;
+  }
+
+  .hero,
+  .subject-hero,
+  .premium-control-panel,
+  .updates-section,
+  .footer-card,
+  .login-card {
+    border-radius: 22px !important;
+  }
+
+  .electric-card,
+  .folder-card,
+  .file-card {
+    border-radius: 22px !important;
+  }
+
+  .folder-card {
+    min-height: 150px !important;
+    padding: 22px !important;
+  }
+
+  .file-card {
+    padding: 18px !important;
+  }
+
+  /* PDF viewer: less painting work while scrolling */
+  .drive-pdf-scroll-area {
+    scroll-behavior: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-bottom: 88px !important;
+  }
+
+  .drive-pdf-page,
+  .thunder-paper {
+    contain: layout paint !important;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.34) !important;
+  }
+
+  .drive-pdf-page canvas,
+  .react-pdf__Page canvas {
+    display: block !important;
+  }
+
+  .drive-scrollbar-thumb {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar h1 {
+    font-size: 34px !important;
+  }
+
+  .topbar p,
+  .hero p,
+  .subject-hero p,
+  .premium-copy p {
+    font-size: 15px !important;
+  }
+
+  .pdf-header-title {
+    max-width: 32vw !important;
+  }
+
+  .zoom-controls {
+    gap: 3px !important;
+  }
+
+  .zoom-text {
+    min-width: 30px !important;
+  }
+}
+
