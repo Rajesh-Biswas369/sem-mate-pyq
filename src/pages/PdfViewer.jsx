@@ -11,6 +11,8 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.vers
 
 const ADMIN_EMAILS = ["maxjoy146@gmail.com", "kk9327721@gmail.com"];
 const TRIAL_SECONDS = 120;
+const DESKTOP_PAGE_RENDER_LIMIT = 30;
+const THUMB_HEIGHT = 48;
 
 function safeDecode(value = "") {
   try {
@@ -131,7 +133,9 @@ function PdfViewer() {
     typeof window === "undefined" ? 900 : window.innerWidth
   );
   const [showDriveScroll, setShowDriveScroll] = useState(false);
-  const [hdMode, setHdMode] = useState(true);
+  const [hdMode, setHdMode] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= 768
+  );
 
   const scrollContainerRef = useRef(null);
   const thumbRef = useRef(null);
@@ -142,7 +146,8 @@ function PdfViewer() {
   const driveScrollVisibleRef = useRef(false);
 
   const isMobile = viewportWidth <= 768;
-  const pagesAroundCurrent = isMobile ? 1 : 2;
+  const shouldUseVirtualPages = isMobile || (numPages || 0) > DESKTOP_PAGE_RENDER_LIMIT;
+  const pagesAroundCurrent = isMobile ? 1 : 3;
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
@@ -232,15 +237,17 @@ function PdfViewer() {
   }, [pageWidth]);
 
   const devicePixelRatio = useMemo(() => {
-    if (typeof window === "undefined") return 1.5;
+    if (typeof window === "undefined") return 1.25;
 
     const screenDpr = window.devicePixelRatio || 1;
 
+    // Mobile keeps sharper rendering because it was already working well.
+    // Laptop/desktop starts in FAST mode to stop scrollbar and scroll jank.
     if (hdMode) {
-      return isMobile ? Math.min(screenDpr, 2.5) : Math.min(screenDpr, 2.25);
+      return isMobile ? Math.min(screenDpr, 2.5) : Math.min(screenDpr, 1.75);
     }
 
-    return isMobile ? Math.min(screenDpr, 1.6) : Math.min(screenDpr, 1.75);
+    return isMobile ? Math.min(screenDpr, 1.6) : Math.min(screenDpr, 1.25);
   }, [hdMode, isMobile]);
 
   useEffect(() => {
@@ -297,8 +304,13 @@ function PdfViewer() {
     const { scrollTop, scrollHeight, clientHeight } = container;
     const maxScroll = Math.max(scrollHeight - clientHeight, 0);
     const progress = maxScroll > 0 ? scrollTop / maxScroll : 0;
+    const thumbHeight = isMobile ? 46 : THUMB_HEIGHT;
+    const maxThumbMove = Math.max(clientHeight - thumbHeight, 0);
+    const nextY = Math.round(progress * maxThumbMove);
 
-    thumb.style.top = `calc(${progress * 100}% - ${progress * 48}px)`;
+    // transform is smoother than changing top on laptop/desktop.
+    thumb.style.top = "0px";
+    thumb.style.transform = `translate3d(0, ${nextY}px, 0)`;
   };
 
   const handleScroll = () => {
@@ -323,7 +335,8 @@ function PdfViewer() {
     const startY = event.clientY;
     const startScrollTop = container.scrollTop;
     const maxScroll = Math.max(container.scrollHeight - container.clientHeight, 0);
-    const maxThumbMove = Math.max(container.clientHeight - 48, 1);
+    const thumbHeight = isMobile ? 46 : THUMB_HEIGHT;
+    const maxThumbMove = Math.max(container.clientHeight - thumbHeight, 1);
 
     const onPointerMove = (moveEvent) => {
       if (!isDraggingRef.current) return;
@@ -356,6 +369,10 @@ function PdfViewer() {
   };
 
   const shouldRenderPage = (pageNumber) => {
+    // On laptop/desktop, render normal PDFs fully once.
+    // This avoids continuous page mount/unmount while scrolling, which caused scrollbar lag.
+    if (!shouldUseVirtualPages) return true;
+
     if (pageNumber === 1 || pageNumber === numPages) return true;
     return Math.abs(pageNumber - currentPage) <= pagesAroundCurrent;
   };
@@ -442,9 +459,9 @@ function PdfViewer() {
             className="tiny-action"
             onClick={() => setHdMode((current) => !current)}
             aria-label="Toggle HD mode"
-            title="Toggle HD mode"
+            title={hdMode ? "Switch to faster laptop scrolling" : "Switch to sharper HD rendering"}
           >
-            HD
+            {hdMode ? "HD" : "FAST"}
           </button>
         </div>
       </div>
