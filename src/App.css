@@ -137,69 +137,6 @@ a {
   to { transform: translateX(28px) translateY(12px) scale(1.03); }
 }
 
-/* =========================================
-   REALISTIC LIGHTNING
-========================================= */
-
-.real-lightning {
-  position: fixed;
-  top: -30px;
-  width: 180px;
-  height: 480px;
-  z-index: 1;
-  opacity: 0;
-  pointer-events: none;
-  filter:
-    drop-shadow(0 0 6px rgba(255, 255, 255, 0.95))
-    drop-shadow(0 0 16px rgba(255, 255, 255, 0.75))
-    drop-shadow(0 0 28px rgba(96, 165, 250, 0.45));
-  will-change: opacity; /* Hardware acceleration */
-}
-
-.real-lightning::before,
-.real-lightning::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 1),
-    rgba(248, 250, 252, 0.96) 25%,
-    rgba(219, 234, 254, 0.92) 55%,
-    rgba(96, 165, 250, 0.65) 82%,
-    transparent
-  );
-  clip-path: polygon(48% 0%, 56% 0%, 50% 12%, 61% 12%, 46% 28%, 58% 28%, 39% 48%, 53% 48%, 34% 74%, 47% 55%, 39% 55%, 52% 33%, 43% 33%);
-}
-
-.real-lightning::after {
-  transform: translateX(26px) translateY(78px) scale(0.58) rotate(18deg);
-  opacity: 0.82;
-}
-
-.bolt-1 { left: 8%; animation: realisticFlash 7s infinite; }
-.bolt-2 { right: 10%; transform: scale(0.82) rotate(10deg); animation: realisticFlash 9s infinite 2s; }
-.bolt-3 { left: 50%; transform: scale(0.62) rotate(-10deg); animation: realisticFlash 11s infinite 4s; }
-
-@keyframes realisticFlash {
-  0%, 88%, 100% { opacity: 0; }
-  89% { opacity: 1; }
-  90% { opacity: 0.18; }
-  91% { opacity: 1; }
-  92% { opacity: 0; }
-  95% { opacity: 0.72; }
-  96% { opacity: 0; }
-}
-
-@keyframes stormSkyFlash {
-  0%, 87%, 100% { opacity: 0.18; }
-  88% { opacity: 0.65; }
-  89% { opacity: 0.2; }
-  90% { opacity: 0.82; }
-  91% { opacity: 0.18; }
-  95% { opacity: 0.45; }
-  96% { opacity: 0.18; }
-}
 
 /* =========================================
    GOLDEN TITLE / TEXT
