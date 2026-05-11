@@ -248,6 +248,13 @@ export const pyqData = [
                 premium: true,
                 url: "/Sem4/SSM/Solutions/solution-2025.pdf",
               },
+              {
+                title: "Solution 2026",
+                year: "2026",
+                topic: "Solution",
+                premium: true,
+                url: "/Sem4/SSM/Solutions/solution-2026.pdf",
+              },
             ],
           },
         ],
