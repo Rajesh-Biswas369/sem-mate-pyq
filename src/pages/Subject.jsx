@@ -4,10 +4,29 @@ import { pyqData } from "../data/pyqData";
 import { auth } from "../firebase";
 import Footer from "../components/Footer";
 
-const ADMIN_EMAILS = ["maxjoy146@gmail.com", "kk9327721@gmail.com"];
+const ADMIN_EMAILS = ["maxjoy146@gmail.com", "kk9327721@gmail.com","tamajitray.5@gmail.com"];
 const TRIAL_SECONDS = 120;
-const FREE_COUPON = "TRKK";
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+const ACCESS_TYPES = ["total", "materials", "solutions"];
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "https://sem-mate-pyq.onrender.com").replace(/\/$/, "");
+
+const DEFAULT_ACCESS_PLANS = {
+  total: {
+    label: "Full Subject Access",
+    price: 10,
+    oldPrice: 12,
+    coupon: "TOTALFREE",
+  },
+  materials: {
+    label: "Materials Access",
+    price: 6,
+    coupon: "PART12",
+  },
+  solutions: {
+    label: "Solutions Access",
+    price: 6,
+    coupon: "PYQSOLN",
+  },
+};
 
 function countFiles(folderOrSubject) {
   const directFiles = folderOrSubject?.files?.length || 0;
@@ -41,6 +60,17 @@ function loadRazorpayCheckout() {
   });
 }
 
+function cleanKeyPart(value = "") {
+  return String(value).replace(/[^a-zA-Z0-9_-]/g, "");
+}
+
+function getFolderAccessType(folder) {
+  if (!folder) return "pyq";
+  if (folder.type === "materials") return "materials";
+  if (folder.type === "solutions") return "solutions";
+  return "pyq";
+}
+
 function Subject() {
   const { semesterName, subjectName } = useParams();
   const navigate = useNavigate();
@@ -48,11 +78,11 @@ function Subject() {
   const [user, setUser] = useState(null);
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [selectedSubFolder, setSelectedSubFolder] = useState(null);
-  const [trialTime, setTrialTime] = useState(0);
-  const [isPaid, setIsPaid] = useState(false);
-  const [coupon, setCoupon] = useState("");
-  const [paymentMessage, setPaymentMessage] = useState("");
-  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [trialTimes, setTrialTimes] = useState({ total: 0, materials: 0, solutions: 0 });
+  const [paidAccess, setPaidAccess] = useState({ total: false, materials: false, solutions: false });
+  const [couponValues, setCouponValues] = useState({ total: "", materials: "", solutions: "" });
+  const [paymentMessages, setPaymentMessages] = useState({ total: "", materials: "", solutions: "" });
+  const [paymentLoading, setPaymentLoading] = useState({ total: false, materials: false, solutions: false });
 
   const decodedSem = decodeURIComponent(semesterName || "");
   const decodedSub = decodeURIComponent(subjectName || "");
@@ -63,17 +93,22 @@ function Subject() {
   }, [decodedSem, decodedSub]);
 
   const totalFiles = useMemo(() => countFiles(subject), [subject]);
+  const accessPlans = subject?.accessPlans || null;
+  const supportsSectionAccess = Boolean(accessPlans);
 
-  const makeKey = (prefix) => {
+  const makeKey = (prefix, accessType = "total") => {
     if (!user?.email || !subject?.name) return "";
-    return `${prefix}_${user.email}_${subject.name}`.replace(/\s+/g, "");
+    return `${prefix}_${cleanKeyPart(user.email)}_${cleanKeyPart(subject.name)}_${accessType}`;
   };
 
-  const trialKey = makeKey("trial");
-  const paidKey = makeKey("paid");
-  const paymentKey = makeKey("payment");
-  const trialStarted = Boolean(trialKey && localStorage.getItem(trialKey));
-  const subjectRequiresPayment = Boolean(subject?.price);
+  const isAdmin = Boolean(user && ADMIN_EMAILS.includes(user.email));
+
+  const getPlan = (accessType) => accessPlans?.[accessType] || DEFAULT_ACCESS_PLANS[accessType];
+
+  const getTrialStarted = (accessType) => {
+    const key = makeKey("trial", accessType);
+    return Boolean(key && localStorage.getItem(key));
+  };
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
@@ -86,44 +121,51 @@ function Subject() {
   useEffect(() => {
     setSelectedFolder(null);
     setSelectedSubFolder(null);
-    setCoupon("");
-    setPaymentMessage("");
+    setCouponValues({ total: "", materials: "", solutions: "" });
+    setPaymentMessages({ total: "", materials: "", solutions: "" });
   }, [subject]);
 
   useEffect(() => {
-    if (!user || !subject) {
-      setIsPaid(false);
-      setTrialTime(0);
+    if (!user || !subject || !supportsSectionAccess) {
+      setPaidAccess({ total: false, materials: false, solutions: false });
+      setTrialTimes({ total: 0, materials: 0, solutions: 0 });
       return;
     }
 
-    const storedPaid = localStorage.getItem(paidKey) === "true";
-    setIsPaid(storedPaid);
+    const nextPaid = { total: false, materials: false, solutions: false };
+    const nextTrials = { total: 0, materials: 0, solutions: 0 };
 
-    if (!subject.hasTrial || !trialKey) {
-      setTrialTime(0);
-      return;
-    }
+    ACCESS_TYPES.forEach((accessType) => {
+      const paidKey = makeKey("paid", accessType);
+      const trialKey = makeKey("trial", accessType);
 
-    const storedStart = Number(localStorage.getItem(trialKey));
-    if (!storedStart) {
-      setTrialTime(0);
-      return;
-    }
+      nextPaid[accessType] = Boolean(paidKey && localStorage.getItem(paidKey) === "true");
 
-    const elapsed = Math.floor((Date.now() - storedStart) / 1000);
-    setTrialTime(Math.max(TRIAL_SECONDS - elapsed, 0));
-  }, [user, subject, paidKey, trialKey]);
+      const storedStart = Number(localStorage.getItem(trialKey));
+      if (storedStart) {
+        const elapsed = Math.floor((Date.now() - storedStart) / 1000);
+        nextTrials[accessType] = Math.max(TRIAL_SECONDS - elapsed, 0);
+      }
+    });
+
+    setPaidAccess(nextPaid);
+    setTrialTimes(nextTrials);
+  }, [user, subject, supportsSectionAccess]);
 
   useEffect(() => {
-    if (trialTime <= 0) return undefined;
+    const hasRunningTrial = ACCESS_TYPES.some((accessType) => trialTimes[accessType] > 0);
+    if (!hasRunningTrial) return undefined;
 
     const timer = setInterval(() => {
-      setTrialTime((previousTime) => Math.max(previousTime - 1, 0));
+      setTrialTimes((previousTimes) => ({
+        total: Math.max(previousTimes.total - 1, 0),
+        materials: Math.max(previousTimes.materials - 1, 0),
+        solutions: Math.max(previousTimes.solutions - 1, 0),
+      }));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [trialTime]);
+  }, [trialTimes]);
 
   const formatTime = (seconds) => {
     const minutes = Math.floor(seconds / 60);
@@ -131,74 +173,111 @@ function Subject() {
     return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
 
-  const startTrial = () => {
-    if (!user || !subject || !trialKey) {
-      setPaymentMessage("Please login first to start the trial.");
+  const hasDirectAccess = (accessType) => {
+    if (!supportsSectionAccess) return true;
+    return Boolean(isAdmin || paidAccess[accessType] || trialTimes[accessType] > 0);
+  };
+
+  const hasSectionAccess = (accessType) => {
+    if (!supportsSectionAccess) return true;
+
+    // PYQ documents are not free now.
+    // They open only when the user has Full Subject Access
+    // through total trial, total promo, total payment, or admin access.
+    if (accessType === "pyq") return hasDirectAccess("total");
+
+    if (accessType === "materials" || accessType === "solutions") {
+      return Boolean(hasDirectAccess("total") || hasDirectAccess(accessType));
+    }
+
+    return hasDirectAccess("total");
+  };
+
+  const setMessage = (accessType, message) => {
+    setPaymentMessages((previous) => ({ ...previous, [accessType]: message }));
+  };
+
+  const setLoading = (accessType, value) => {
+    setPaymentLoading((previous) => ({ ...previous, [accessType]: value }));
+  };
+
+  const startTrial = (accessType) => {
+    if (!user || !subject) {
+      setMessage(accessType, "Please login first to start the trial.");
       return;
     }
 
-    if (trialStarted) {
-      setPaymentMessage("Your free trial has already been used for this subject.");
+    const trialKey = makeKey("trial", accessType);
+    if (!trialKey) return;
+
+    if (getTrialStarted(accessType)) {
+      setMessage(accessType, "Your 2-minute trial has already been used for this section.");
       return;
     }
 
     localStorage.setItem(trialKey, String(Date.now()));
-    setTrialTime(TRIAL_SECONDS);
-    setPaymentMessage("2-minute trial started. Documents are temporarily unlocked.");
+    setTrialTimes((previous) => ({ ...previous, [accessType]: TRIAL_SECONDS }));
+    setMessage(accessType, `${getPlan(accessType).label} trial started for 2 minutes.`);
   };
 
-  const markPaidAfterSuccessfulPayment = (paymentData = {}) => {
-    if (!user || !paidKey) return;
+  const markPaidAfterSuccessfulPayment = (accessType, paymentData = {}) => {
+    if (!user || !subject) return;
+
+    const paidKey = makeKey("paid", accessType);
+    const paymentKey = makeKey("payment", accessType);
 
     localStorage.setItem(paidKey, "true");
     localStorage.setItem(
       paymentKey,
       JSON.stringify({
         ...paymentData,
+        accessType,
         subjectName: subject?.name,
         email: user.email,
         paidAt: new Date().toISOString(),
       })
     );
-    setIsPaid(true);
-    setPaymentMessage("Payment successful. Documents are unlocked.");
+
+    setPaidAccess((previous) => ({ ...previous, [accessType]: true }));
+    setMessage(accessType, `${getPlan(accessType).label} unlocked successfully.`);
   };
 
-  const handleApplyCoupon = () => {
-    if (!user || !paidKey) {
-      setPaymentMessage("Please login first to apply a promo code.");
-      return;
-    }
-
-    if (coupon.trim().toUpperCase() === FREE_COUPON) {
-      localStorage.setItem(paidKey, "true");
-      setIsPaid(true);
-      setPaymentMessage("Promo code applied successfully. Documents are unlocked.");
-      return;
-    }
-
-    setPaymentMessage("Invalid promo code.");
-  };
-
-  const handlePayment = async () => {
+  const handleApplyCoupon = (accessType) => {
     if (!user) {
-      setPaymentMessage("Please login first before payment.");
+      setMessage(accessType, "Please login first to apply a promo code.");
+      return;
+    }
+
+    const enteredCoupon = (couponValues[accessType] || "").trim().toUpperCase();
+    const requiredCoupon = getPlan(accessType).coupon;
+
+    if (enteredCoupon === requiredCoupon) {
+      markPaidAfterSuccessfulPayment(accessType, { couponCode: requiredCoupon, mode: "coupon" });
+      return;
+    }
+
+    setMessage(accessType, "Invalid promo code for this section.");
+  };
+
+  const handlePayment = async (accessType) => {
+    if (!user) {
+      setMessage(accessType, "Please login first before payment.");
       navigate("/login");
       return;
     }
 
-    if (!subject?.name || !subject?.price) {
-      setPaymentMessage("Payment is not configured for this subject.");
+    if (!subject?.name || !getPlan(accessType)?.price) {
+      setMessage(accessType, "Payment is not configured for this section.");
       return;
     }
 
     try {
-      setPaymentLoading(true);
-      setPaymentMessage("Preparing secure payment...");
+      setLoading(accessType, true);
+      setMessage(accessType, "Preparing secure payment...");
 
       const scriptLoaded = await loadRazorpayCheckout();
       if (!scriptLoaded) {
-        setPaymentMessage("Could not load Razorpay. Check your internet connection.");
+        setMessage(accessType, "Could not load Razorpay. Check your internet connection.");
         return;
       }
 
@@ -207,6 +286,7 @@ function Subject() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           subjectName: subject.name,
+          accessType,
           email: user.email,
         }),
       });
@@ -222,7 +302,7 @@ function Subject() {
         amount: orderData.order.amount,
         currency: orderData.order.currency,
         name: "SEM-MATE",
-        description: `${subject.name} Premium Access`,
+        description: `${subject.name} - ${getPlan(accessType).label}`,
         order_id: orderData.order.id,
         prefill: {
           name: user.displayName || "Student",
@@ -230,6 +310,7 @@ function Subject() {
         },
         notes: {
           subjectName: subject.name,
+          accessType,
           email: user.email || "",
         },
         theme: {
@@ -237,13 +318,13 @@ function Subject() {
         },
         modal: {
           ondismiss: () => {
-            setPaymentLoading(false);
-            setPaymentMessage("Payment window closed. Documents are still locked.");
+            setLoading(accessType, false);
+            setMessage(accessType, "Payment window closed. This section is still locked.");
           },
         },
         handler: async (response) => {
           try {
-            setPaymentMessage("Verifying payment...");
+            setMessage(accessType, "Verifying payment...");
 
             const verifyResponse = await fetch(`${API_BASE_URL}/api/verify-payment`, {
               method: "POST",
@@ -251,6 +332,7 @@ function Subject() {
               body: JSON.stringify({
                 ...response,
                 subjectName: subject.name,
+                accessType,
                 email: user.email,
               }),
             });
@@ -261,14 +343,15 @@ function Subject() {
               throw new Error(verifyData.message || "Payment verification failed.");
             }
 
-            markPaidAfterSuccessfulPayment({
+            markPaidAfterSuccessfulPayment(accessType, {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
+              mode: "razorpay",
             });
           } catch (error) {
-            setPaymentMessage(error.message || "Payment verification failed.");
+            setMessage(accessType, error.message || "Payment verification failed.");
           } finally {
-            setPaymentLoading(false);
+            setLoading(accessType, false);
           }
         },
       };
@@ -276,9 +359,12 @@ function Subject() {
       const razorpay = new window.Razorpay(options);
       razorpay.open();
     } catch (error) {
-      setPaymentMessage(error.message || "Payment could not be started.");
+      setMessage(
+        accessType,
+        error.message || `Payment could not be started. Check ${API_BASE_URL}/api/create-order.`
+      );
     } finally {
-      setPaymentLoading(false);
+      setLoading(accessType, false);
     }
   };
 
@@ -309,10 +395,81 @@ function Subject() {
     navigate(-1);
   };
 
-  const isAdmin = Boolean(user && ADMIN_EMAILS.includes(user.email));
-  const hasAccess = Boolean(isPaid || isAdmin || trialTime > 0);
-  const documentsAreLocked = subjectRequiresPayment && !hasAccess;
-  const currentFileFolder = selectedSubFolder || selectedFolder;
+  const renderAccessPanel = (accessType, options = {}) => {
+    if (!supportsSectionAccess) return null;
+
+    const plan = getPlan(accessType);
+    const active = hasSectionAccess(accessType);
+    const directActive = hasDirectAccess(accessType);
+    const trialStarted = getTrialStarted(accessType);
+    const title = options.title || plan.label;
+    const description = options.description || "Unlock this section with payment, trial, or promo code.";
+
+    return (
+      <section className={`premium-control-panel section-access-panel ${active ? "access-active" : ""}`}>
+        <div className="premium-copy">
+          <span className="premium-badge">⚡ {plan.label}</span>
+          <h2>{title}</h2>
+          <p>{description}</p>
+          <div className="price-line">
+            {plan.oldPrice && <span className="old-price">₹{plan.oldPrice}</span>}
+            <strong>₹{plan.price}</strong>
+          </div>
+        </div>
+
+        <div className="premium-actions">
+          <div className="timer-card">
+            <span>⏳ 2-minute trial</span>
+            <strong>{trialTimes[accessType] > 0 ? formatTime(trialTimes[accessType]) : "00:00"}</strong>
+            <small>
+              {trialTimes[accessType] > 0
+                ? `${plan.label} trial is running.`
+                : !user
+                ? "Login required to start trial."
+                : !trialStarted
+                ? "Trial available for this section."
+                : "Trial already used for this section."}
+            </small>
+          </div>
+
+          {!user ? (
+            <button className="pay-btn" onClick={() => navigate("/login")}>
+              Login to Continue ⚡
+            </button>
+          ) : directActive ? (
+            <div className="access-chip">✅ {plan.label} Active</div>
+          ) : (
+            <>
+              {!trialStarted && (
+                <button className="pay-btn trial-btn" onClick={() => startTrial(accessType)}>
+                  Start 2-Min Trial
+                </button>
+              )}
+
+              <div className="coupon-row">
+                <input
+                  placeholder="Enter promo code"
+                  value={couponValues[accessType] || ""}
+                  onChange={(event) =>
+                    setCouponValues((previous) => ({ ...previous, [accessType]: event.target.value }))
+                  }
+                />
+                <button type="button" onClick={() => handleApplyCoupon(accessType)}>
+                  Apply
+                </button>
+              </div>
+
+              <button className="pay-btn" onClick={() => handlePayment(accessType)} disabled={paymentLoading[accessType]}>
+                {paymentLoading[accessType] ? "Processing..." : `Pay ₹${plan.price} Securely`}
+              </button>
+            </>
+          )}
+
+          {paymentMessages[accessType] && <p className="payment-message">{paymentMessages[accessType]}</p>}
+        </div>
+      </section>
+    );
+  };
 
   if (!subject) {
     return (
@@ -327,6 +484,14 @@ function Subject() {
       </div>
     );
   }
+
+  const currentFileFolder = selectedSubFolder || selectedFolder;
+  const currentAccessType = selectedSubFolder ? "materials" : getFolderAccessType(selectedFolder);
+  const isDocumentLocked = (accessType) => {
+    // Folders remain open, but every PDF document is locked
+    // unless its required trial/payment/promo access is active.
+    return !hasSectionAccess(accessType);
+  };
 
   return (
     <div className="app electric-bg subject-page">
@@ -348,73 +513,12 @@ function Subject() {
         </p>
       </header>
 
-      {subject.price && (
-        <section className={`premium-control-panel ${hasAccess ? "access-active" : ""}`}>
-          <div className="premium-copy">
-            <span className="premium-badge">⚡ Premium Access</span>
-            <h2>Timer and payment option</h2>
-            <p>
-              Documents stay locked until successful payment, admin access, or an active 2-minute trial.
-              Login is required before starting the trial.
-            </p>
-          </div>
-
-          <div className="premium-actions">
-            <div className="timer-card">
-              <span>⏳ Trial countdown</span>
-              <strong>
-                {trialTime > 0
-                  ? formatTime(trialTime)
-                  : !trialStarted
-                  ? formatTime(TRIAL_SECONDS)
-                  : "00:00"}
-              </strong>
-              <small>
-                {trialTime > 0
-                  ? "Trial running. Documents are open now."
-                  : !user
-                  ? "Login required to start trial."
-                  : subject.hasTrial && !trialStarted
-                  ? "2-minute trial available."
-                  : "Trial ended. Payment required."}
-              </small>
-            </div>
-
-            {!user ? (
-              <button className="pay-btn" onClick={() => navigate("/login")}>
-                Login to Continue ⚡
-              </button>
-            ) : hasAccess ? (
-              <div className="access-chip">✅ Access Active</div>
-            ) : (
-              <>
-                {subject.hasTrial && !trialStarted && (
-                  <button className="pay-btn trial-btn" onClick={startTrial}>
-                    Start 2-Min Free Trial
-                  </button>
-                )}
-
-                <div className="coupon-row">
-                  <input
-                    placeholder="Enter promo code"
-                    value={coupon}
-                    onChange={(event) => setCoupon(event.target.value)}
-                  />
-                  <button type="button" onClick={handleApplyCoupon}>
-                    Apply
-                  </button>
-                </div>
-
-                <button className="pay-btn" onClick={handlePayment} disabled={paymentLoading}>
-                  {paymentLoading ? "Processing..." : `Pay ₹${subject.price} Securely`}
-                </button>
-              </>
-            )}
-
-            {paymentMessage && <p className="payment-message">{paymentMessage}</p>}
-          </div>
-        </section>
-      )}
+      {!selectedFolder &&
+        renderAccessPanel("total", {
+          title: "Complete Subject Pack",
+          description:
+            "Unlock all PDF documents in this subject: Materials, PYQs, and Solutions. Login is needed only when starting trial, applying promo, or making payment.",
+        })}
 
       {!selectedFolder && (
         <>
@@ -439,6 +543,27 @@ function Subject() {
           </div>
         </>
       )}
+
+      {selectedFolder?.type === "pyq" &&
+        renderAccessPanel("total", {
+          title: "Unlock PYQ Documents",
+          description:
+            "PYQ PDFs are locked too. Open them using Full Subject Access through the 2-minute total trial, TOTALFREE promo, or payment.",
+        })}
+
+      {selectedFolder?.type === "materials" &&
+        renderAccessPanel("materials", {
+          title: "Materials Pack",
+          description:
+            "Unlock Part-I and Part-II materials only. Total access also unlocks this section.",
+        })}
+
+      {selectedFolder?.type === "solutions" &&
+        renderAccessPanel("solutions", {
+          title: "Solutions Pack",
+          description:
+            "Unlock solution PDFs only. Total access also unlocks this section.",
+        })}
 
       {selectedFolder?.subFolders && !selectedSubFolder && (
         <section className="file-view">
@@ -488,7 +613,7 @@ function Subject() {
           ) : (
             <div className="file-list">
               {currentFileFolder.files.map((file, index) => {
-                const locked = documentsAreLocked;
+                const locked = isDocumentLocked(currentAccessType);
                 const viewerPath = `/viewer${encodeURI(file.url)}`;
                 const backTo = `/subject/${encodeURIComponent(decodedSem)}/${encodeURIComponent(decodedSub)}`;
 
@@ -506,7 +631,7 @@ function Subject() {
 
                     {locked ? (
                       <span className="locked-label">
-                        {!user ? "Login Required" : "Payment Required"}
+                        {!user ? "Login for Trial/Payment" : "Unlock Required"}
                       </span>
                     ) : (
                       <Link
@@ -517,7 +642,8 @@ function Subject() {
                           backTo,
                           semesterName: decodedSem,
                           subjectName: decodedSub,
-                          requiresPayment: subjectRequiresPayment,
+                          accessType: currentAccessType,
+                          requiresPayment: supportsSectionAccess,
                         }}
                         className="open-btn"
                       >

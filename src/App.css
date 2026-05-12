@@ -2049,3 +2049,235 @@ a {
   }
 }
 
+
+
+/* =========================================
+   FULL HD GOOGLE DRIVE-LIKE PDF VIEWER PATCH
+   Keeps PDF text sharper and smoother while zooming
+========================================= */
+
+.drive-pdf-viewer {
+  max-width: none !important;
+  padding-top: 10px !important;
+  overflow: hidden !important;
+}
+
+.pdf-nav-smart {
+  max-width: 1240px;
+  margin: 0 auto 12px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.32);
+}
+
+.drive-pdf-scroll-area {
+  height: calc(100vh - 88px) !important;
+  padding: 18px 0 90px !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.drive-pdf-scroll-area .react-pdf__Document {
+  width: max-content;
+  min-width: 100%;
+  margin: 0 auto;
+  gap: 22px !important;
+}
+
+.drive-pdf-page {
+  display: grid;
+  place-items: center;
+  margin: 0 auto 22px;
+  background: #ffffff;
+  border-radius: 9px;
+  contain: layout paint;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 18px 55px rgba(0, 0, 0, 0.46),
+    0 0 24px rgba(255, 255, 255, 0.06);
+}
+
+.drive-pdf-page .react-pdf__Page,
+.drive-pdf-page .react-pdf__Page__canvas,
+.drive-pdf-page canvas {
+  background: #ffffff !important;
+}
+
+.drive-pdf-page canvas {
+  display: block !important;
+  max-width: none !important;
+  height: auto !important;
+  image-rendering: auto;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  filter: contrast(1.08) saturate(1.04) brightness(1.02);
+}
+
+.drive-pdf-placeholder {
+  filter: none !important;
+  background: linear-gradient(180deg, #ffffff, #f1f5f9) !important;
+}
+
+.pdf-placeholder-content,
+.pdf-page-loading {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  width: 100%;
+  color: #64748b;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  background: #ffffff;
+}
+
+.zoom-controls .tiny-action {
+  font-size: 16px;
+}
+
+.zoom-text {
+  min-width: 48px;
+  color: #f8fafc !important;
+}
+
+.drive-scrollbar-thumb {
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+}
+
+@media (max-width: 768px) {
+  .drive-pdf-viewer {
+    padding: 8px 8px 0 !important;
+  }
+
+  .pdf-nav-smart {
+    top: 6px;
+    padding: 8px;
+    gap: 8px;
+    border-radius: 18px;
+  }
+
+  .drive-pdf-scroll-area {
+    height: calc(100vh - 76px) !important;
+    padding: 8px 0 78px !important;
+  }
+
+  .drive-pdf-page {
+    margin-bottom: 14px;
+    border-radius: 7px;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.16),
+      0 12px 34px rgba(0, 0, 0, 0.38);
+  }
+
+  .drive-pdf-page canvas {
+    filter: contrast(1.1) saturate(1.05) brightness(1.02);
+  }
+}
+
+
+/* =========================================
+   SEM-MATE SECTION-WISE ACCESS PANELS
+========================================= */
+.section-access-panel {
+  margin: 28px auto 34px;
+  max-width: 1120px;
+}
+
+.price-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.price-line strong {
+  color: #facc15;
+  font-size: 34px;
+  font-weight: 1000;
+  letter-spacing: -0.5px;
+  text-shadow: 0 0 20px rgba(250, 204, 21, 0.22);
+}
+
+.old-price {
+  color: #94a3b8;
+  font-size: 20px;
+  font-weight: 900;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+.folder-card.locked,
+.file-card.locked {
+  border-color: rgba(250, 204, 21, 0.16);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.72), rgba(17, 24, 39, 0.88)),
+    radial-gradient(circle at 50% 0%, rgba(250, 204, 21, 0.08), transparent 38%);
+}
+
+.folder-card.locked .folder-icon {
+  filter: drop-shadow(0 0 12px rgba(250, 204, 21, 0.24));
+}
+
+.access-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  color: #052e16;
+  background: linear-gradient(135deg, #bbf7d0, #22c55e);
+  font-weight: 950;
+  box-shadow: 0 0 22px rgba(34, 197, 94, 0.28);
+}
+
+.locked-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 999px;
+  color: #fde68a;
+  font-weight: 900;
+  border: 1px solid rgba(250, 204, 21, 0.2);
+  background: rgba(250, 204, 21, 0.08);
+}
+
+/* =========================================
+   FULL HD GOOGLE DRIVE-LIKE PDF SHARPNESS
+========================================= */
+.pdf-fhd-mode .react-pdf__Page,
+.pdf-fhd-mode .react-pdf__Page__canvas {
+  image-rendering: auto;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.pdf-fhd-mode .react-pdf__Page__canvas {
+  filter: contrast(1.07) saturate(1.08) brightness(1.015);
+}
+
+.pdf-fhd-mode .drive-pdf-page {
+  background: #ffffff;
+}
+
+.pdf-fhd-mode .zoom-controls .tiny-action {
+  min-width: 44px;
+}
+
+@media (max-width: 768px) {
+  .section-access-panel {
+    margin: 18px auto 24px;
+  }
+
+  .price-line strong {
+    font-size: 28px;
+  }
+
+  .old-price {
+    font-size: 17px;
+  }
+}

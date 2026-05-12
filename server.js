@@ -22,12 +22,28 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-const SUBJECTS = {
-  "Sequential Systems & Microprocessor": {
+const SEM4_THEORY_SUBJECTS = [
+  "Electrical Instrumentation",
+  "Electrical Machines-II",
+  "Power Supply Systems",
+  "Digital Signal Processing",
+  "Sequential Systems & Microprocessor",
+  "Field Theory",
+];
+
+const ACCESS_PLANS = {
+  materials: {
+    label: "Materials Access",
     price: 6,
   },
-  "Digital Signal Processing": {
+  solutions: {
+    label: "Solutions Access",
+    price: 6,
+  },
+  total: {
+    label: "Full Subject Access",
     price: 10,
+    oldPrice: 12,
   },
 };
 
@@ -35,31 +51,49 @@ function cleanSubjectName(subjectName = "") {
   return String(subjectName).trim();
 }
 
+function cleanAccessType(accessType = "") {
+  const cleaned = String(accessType || "").trim().toLowerCase();
+  return ACCESS_PLANS[cleaned] ? cleaned : "";
+}
+
 app.get("/", (req, res) => {
   res.send("Razorpay backend running successfully");
+});
+
+app.get("/api/health", (req, res) => {
+  res.json({ success: true, message: "SEM-MATE payment server is live." });
 });
 
 app.post("/api/create-order", async (req, res) => {
   try {
     const subjectName = cleanSubjectName(req.body.subjectName);
+    const accessType = cleanAccessType(req.body.accessType);
     const email = String(req.body.email || "").trim();
-    const subject = SUBJECTS[subjectName];
 
-    if (!subject) {
+    if (!SEM4_THEORY_SUBJECTS.includes(subjectName)) {
       return res.status(404).json({
         success: false,
-        message: "Subject not found in payment list.",
+        message: "Subject not found in Semester 4 payment list.",
       });
     }
 
-    const amountInPaise = subject.price * 100;
+    if (!accessType) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid access type. Use materials, solutions, or total.",
+      });
+    }
+
+    const plan = ACCESS_PLANS[accessType];
+    const amountInPaise = plan.price * 100;
 
     const order = await razorpay.orders.create({
       amount: amountInPaise,
       currency: "INR",
-      receipt: `sem_mate_${Date.now()}`,
+      receipt: `sem_mate_${accessType}_${Date.now()}`,
       notes: {
         subjectName,
+        accessType,
         email,
       },
     });
@@ -68,7 +102,11 @@ app.post("/api/create-order", async (req, res) => {
       success: true,
       key: process.env.RAZORPAY_KEY_ID,
       order,
-      finalPrice: subject.price,
+      subjectName,
+      accessType,
+      finalPrice: plan.price,
+      oldPrice: plan.oldPrice || null,
+      label: plan.label,
     });
   } catch (error) {
     console.error("❌ Create order error:", error);
@@ -87,6 +125,7 @@ app.post("/api/verify-payment", (req, res) => {
       razorpay_payment_id,
       razorpay_signature,
       subjectName,
+      accessType,
       email,
     } = req.body;
 
@@ -94,6 +133,14 @@ app.post("/api/verify-payment", (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Payment verification data is missing.",
+      });
+    }
+
+    const cleanedAccessType = cleanAccessType(accessType);
+    if (!cleanedAccessType) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid access type during verification.",
       });
     }
 
@@ -115,6 +162,7 @@ app.post("/api/verify-payment", (req, res) => {
     console.log("✅ Payment verified:", {
       paymentId: razorpay_payment_id,
       subjectName,
+      accessType: cleanedAccessType,
       email,
     });
 
@@ -122,6 +170,7 @@ app.post("/api/verify-payment", (req, res) => {
       success: true,
       message: "Payment verified successfully.",
       subjectName,
+      accessType: cleanedAccessType,
       email,
       paymentId: razorpay_payment_id,
     });
