@@ -9,20 +9,10 @@ import "react-pdf/dist/Page/TextLayer.css";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
-const ADMIN_EMAILS = ["maxjoy146@gmail.com", "kk9327721@gmail.com"];
+const ADMIN_EMAILS = ["maxjoy146@gmail.com", "kk9327721@gmail.com", "tamajitray.5@gmail.com"];
 const TRIAL_SECONDS = 120;
-const DESKTOP_PAGE_RENDER_LIMIT = 24;
+const DESKTOP_PAGE_RENDER_LIMIT = 30;
 const THUMB_HEIGHT = 48;
-const ACCESS_TYPES = ["total", "materials", "solutions"];
-
-const SEM4_URL_SUBJECTS = [
-  { marker: "/Sem4/Electrical-Instrumentation/", subjectName: "Electrical Instrumentation" },
-  { marker: "/Sem4/Electrical-Machines-II/", subjectName: "Electrical Machines-II" },
-  { marker: "/Sem4/Power-Supply-Systems/", subjectName: "Power Supply Systems" },
-  { marker: "/Sem4/Digital-Signal-Processing/", subjectName: "Digital Signal Processing" },
-  { marker: "/Sem4/SSM/", subjectName: "Sequential Systems & Microprocessor" },
-  { marker: "/Sem4/Field-Theory/", subjectName: "Field Theory" },
-];
 
 function safeDecode(value = "") {
   try {
@@ -49,6 +39,21 @@ function cleanKeyPart(value = "") {
   return String(value).replace(/[^a-zA-Z0-9_-]/g, "");
 }
 
+function getFolderAccessType(folder) {
+  if (!folder) return "pyq";
+  if (folder.type === "materials") return "materials";
+  if (folder.type === "solutions") return "solutions";
+  return "pyq";
+}
+
+function inferAccessTypeFromUrl(fileUrl = "") {
+  const normalizedUrl = normalizeFileUrl(fileUrl).toLowerCase();
+  if (normalizedUrl.includes("/materials/")) return "materials";
+  if (normalizedUrl.includes("/solutions/")) return "solutions";
+  if (normalizedUrl.includes("/pyq/") || normalizedUrl.includes("/pyqs/")) return "pyq";
+  return "total";
+}
+
 function getLegacyPaper(semesterName, subjectName, paperIndex) {
   if (!semesterName || !subjectName || paperIndex === undefined) return null;
 
@@ -60,23 +65,9 @@ function getLegacyPaper(semesterName, subjectName, paperIndex) {
   return subject?.papers?.[Number(paperIndex)] || null;
 }
 
-function inferAccessTypeFromFolder(folder) {
-  if (!folder) return "pyq";
-  if (folder.type === "materials") return "materials";
-  if (folder.type === "solutions") return "solutions";
-  return "pyq";
-}
-
-function inferAccessTypeFromUrl(url = "") {
-  if (/\/PYQ(s|S)?\//.test(url) || /\/PYQS\//.test(url)) return "pyq";
-  if (url.includes("/Materials/")) return "materials";
-  if (url.includes("/Solutions/")) return "solutions";
-  return "pyq";
-}
-
 function walkFolders(folders = [], fileUrl, inheritedAccessType = "pyq") {
   for (const folder of folders) {
-    const currentAccessType = folder.type ? inferAccessTypeFromFolder(folder) : inheritedAccessType;
+    const currentAccessType = getFolderAccessType(folder) || inheritedAccessType;
     const foundFile = folder.files?.find((file) => normalizeFileUrl(file.url) === fileUrl);
     if (foundFile) return { file: foundFile, folder, accessType: currentAccessType };
 
@@ -92,23 +83,20 @@ function findFileContext(fileUrl) {
 
   for (const semester of pyqData) {
     for (const subject of semester.subjects || []) {
-      const result = walkFolders(subject.folders || [], normalizedUrl);
-      if (result) return { semester, subject, ...result };
+      const found = walkFolders(subject.folders || [], normalizedUrl);
+      if (found) return { semester, subject, file: found.file, folder: found.folder, accessType: found.accessType };
     }
   }
 
-  const matched = SEM4_URL_SUBJECTS.find((item) => normalizedUrl.startsWith(item.marker));
-  if (matched) {
+  // Extra fallback for the SSM public folder. This prevents /viewer/Sem4/SSM/... bypass.
+  if (normalizedUrl.startsWith("/Sem4/SSM/")) {
     const semester = pyqData.find((item) => item.semester === "Semester 4");
-    const subject = semester?.subjects?.find((item) => item.name === matched.subjectName);
+    const subject = semester?.subjects?.find(
+      (item) => item.name === "Sequential Systems & Microprocessor"
+    );
+
     if (semester && subject) {
-      return {
-        semester,
-        subject,
-        file: null,
-        folder: null,
-        accessType: inferAccessTypeFromUrl(normalizedUrl),
-      };
+      return { semester, subject, file: null, accessType: inferAccessTypeFromUrl(normalizedUrl) };
     }
   }
 
@@ -144,10 +132,9 @@ function PdfViewer() {
 
   const fileContext = useMemo(() => findFileContext(fileUrl), [fileUrl]);
   const subject = fileContext?.subject || null;
-  const accessType = location.state?.accessType || fileContext?.accessType || inferAccessTypeFromUrl(fileUrl);
-  const loginRequiredForPdf = Boolean(subject);
+  const currentAccessType = location.state?.accessType || fileContext?.accessType || inferAccessTypeFromUrl(fileUrl);
   const subjectRequiresPayment = Boolean(
-    location.state?.requiresPayment || subject?.accessPlans
+    location.state?.requiresPayment || subject?.accessPlans || subject?.price
   );
 
   const title = location.state?.title || legacyPaper?.title || fileContext?.file?.title || titleFromPath(fileUrl);
@@ -171,7 +158,9 @@ function PdfViewer() {
     typeof window === "undefined" ? 900 : window.innerWidth
   );
   const [showDriveScroll, setShowDriveScroll] = useState(false);
-  const [hdMode, setHdMode] = useState(true);
+  const [hdMode, setHdMode] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= 768
+  );
 
   const scrollContainerRef = useRef(null);
   const thumbRef = useRef(null);
@@ -230,69 +219,72 @@ function PdfViewer() {
   }, []);
 
   const isAdmin = Boolean(user && ADMIN_EMAILS.includes(user.email));
-  const paidAccess = useMemo(() => {
-    if (!user || !subject) return { total: false, materials: false, solutions: false };
 
-    return {
-      total: localStorage.getItem(makeAccessKey("paid", user.email, subject.name, "total")) === "true",
-      materials: localStorage.getItem(makeAccessKey("paid", user.email, subject.name, "materials")) === "true",
-      solutions: localStorage.getItem(makeAccessKey("paid", user.email, subject.name, "solutions")) === "true",
-    };
-  }, [user, subject]);
+  const hasDirectAccess = (accessType) => {
+    if (!subjectRequiresPayment) return true;
+    if (!user) return false;
+    if (isAdmin) return true;
+
+    const paidKey = makeAccessKey("paid", user.email, subject?.name, accessType);
+    return Boolean(paidKey && localStorage.getItem(paidKey) === "true") || trialTimes[accessType] > 0;
+  };
 
   useEffect(() => {
-    if (!user || !subject) {
+    if (!user || !subject || !subjectRequiresPayment) {
       setTrialTimes({ total: 0, materials: 0, solutions: 0 });
       return;
     }
 
     const nextTrials = { total: 0, materials: 0, solutions: 0 };
-    ACCESS_TYPES.forEach((type) => {
-      const storedStart = Number(localStorage.getItem(makeAccessKey("trial", user.email, subject.name, type)));
+    ["total", "materials", "solutions"].forEach((accessType) => {
+      const trialKey = makeAccessKey("trial", user.email, subject.name, accessType);
+      const storedStart = Number(localStorage.getItem(trialKey));
       if (storedStart) {
         const elapsed = Math.floor((Date.now() - storedStart) / 1000);
-        nextTrials[type] = Math.max(TRIAL_SECONDS - elapsed, 0);
+        nextTrials[accessType] = Math.max(TRIAL_SECONDS - elapsed, 0);
       }
     });
 
     setTrialTimes(nextTrials);
-  }, [user, subject]);
+  }, [user, subject, subjectRequiresPayment]);
 
   useEffect(() => {
-    const hasRunningTrial = ACCESS_TYPES.some((type) => trialTimes[type] > 0);
-    if (!hasRunningTrial) return undefined;
+    const runningTrial = Object.values(trialTimes).some((seconds) => seconds > 0);
+    if (!runningTrial) return undefined;
 
     const timer = setInterval(() => {
-      setTrialTimes((previous) => ({
-        total: Math.max(previous.total - 1, 0),
-        materials: Math.max(previous.materials - 1, 0),
-        solutions: Math.max(previous.solutions - 1, 0),
+      setTrialTimes((previousTimes) => ({
+        total: Math.max(previousTimes.total - 1, 0),
+        materials: Math.max(previousTimes.materials - 1, 0),
+        solutions: Math.max(previousTimes.solutions - 1, 0),
       }));
     }, 1000);
 
     return () => clearInterval(timer);
   }, [trialTimes]);
 
-  const hasAccess = useMemo(() => {
-    if (loginRequiredForPdf && !user) return false;
+  const hasAccess = (() => {
     if (!subjectRequiresPayment) return true;
+    if (!user) return false;
     if (isAdmin) return true;
 
-    // Total access opens every PDF document, including PYQs.
-    if (paidAccess.total || trialTimes.total > 0) return true;
+    // PYQ PDFs are free immediately after login.
+    if (currentAccessType === "pyq") return true;
 
-    // Section access opens only that section.
-    if (accessType === "materials") return Boolean(paidAccess.materials || trialTimes.materials > 0);
-    if (accessType === "solutions") return Boolean(paidAccess.solutions || trialTimes.solutions > 0);
+    // Full Subject Access unlocks Materials and Solutions too.
+    if (hasDirectAccess("total")) return true;
 
-    // PYQs do not have a free bypass. They need total access.
+    if (currentAccessType === "materials" || currentAccessType === "solutions") {
+      return hasDirectAccess(currentAccessType);
+    }
+
     return false;
-  }, [accessType, isAdmin, loginRequiredForPdf, paidAccess, subjectRequiresPayment, trialTimes, user]);
+  })();
 
   const pageWidth = useMemo(() => {
-    const sideGap = isMobile ? 14 : 72;
-    const maxBaseWidth = isMobile ? viewportWidth - sideGap : Math.min(viewportWidth - sideGap, 960);
-    return Math.max(320, maxBaseWidth * scale);
+    const sideGap = isMobile ? 18 : 96;
+    const maxBaseWidth = isMobile ? viewportWidth - sideGap : 820;
+    return Math.max(300, maxBaseWidth * scale);
   }, [isMobile, scale, viewportWidth]);
 
   const estimatedPageHeight = useMemo(() => {
@@ -300,15 +292,17 @@ function PdfViewer() {
   }, [pageWidth]);
 
   const devicePixelRatio = useMemo(() => {
-    if (typeof window === "undefined") return 2;
+    if (typeof window === "undefined") return 1.25;
 
     const screenDpr = window.devicePixelRatio || 1;
 
+    // Mobile keeps sharper rendering because it was already working well.
+    // Laptop/desktop starts in FAST mode to stop scrollbar and scroll jank.
     if (hdMode) {
-      return isMobile ? Math.min(screenDpr * 2, 3.2) : Math.min(screenDpr * 2, 3);
+      return isMobile ? Math.min(screenDpr, 2.5) : Math.min(screenDpr, 1.75);
     }
 
-    return isMobile ? Math.min(screenDpr, 1.7) : Math.min(screenDpr, 1.5);
+    return isMobile ? Math.min(screenDpr, 1.6) : Math.min(screenDpr, 1.25);
   }, [hdMode, isMobile]);
 
   useEffect(() => {
@@ -369,6 +363,7 @@ function PdfViewer() {
     const maxThumbMove = Math.max(clientHeight - thumbHeight, 0);
     const nextY = Math.round(progress * maxThumbMove);
 
+    // transform is smoother than changing top on laptop/desktop.
     thumb.style.top = "0px";
     thumb.style.transform = `translate3d(0, ${nextY}px, 0)`;
   };
@@ -429,6 +424,8 @@ function PdfViewer() {
   };
 
   const shouldRenderPage = (pageNumber) => {
+    // On laptop/desktop, render normal PDFs fully once.
+    // This avoids continuous page mount/unmount while scrolling, which caused scrollbar lag.
     if (!shouldUseVirtualPages) return true;
 
     if (pageNumber === 1 || pageNumber === numPages) return true;
@@ -463,10 +460,12 @@ function PdfViewer() {
           <h2>🔒 Document Locked</h2>
           <p>
             {!user
-              ? "This PDF is locked. Login is needed only to start a trial, apply a promo code, or make payment."
-              : accessType === "pyq"
-              ? "PYQ PDFs are locked too. Use Full Subject Access through total trial, TOTALFREE promo, or payment."
-              : "Payment, promo unlock, or an active 2-minute trial is required for this section."}
+              ? currentAccessType === "pyq"
+                ? "Please login first. PYQ PDFs are free after login."
+                : "Please login first. Trial, promo, payment, and document viewing are locked without login."
+              : currentAccessType === "pyq"
+              ? "Please login again to open this free PYQ document."
+              : "Payment, promo, or an active 2-minute trial is required to view this document."}
           </p>
           {!user ? (
             <Link to="/login" className="open-btn">
@@ -484,7 +483,7 @@ function PdfViewer() {
 
   return (
     <div
-      className="app electric-bg page-shell pdf-viewer-shell drive-pdf-viewer pdf-fhd-mode"
+      className="app electric-bg page-shell pdf-viewer-shell drive-pdf-viewer"
       onContextMenu={(event) => event.preventDefault()}
     >
       <div className="topbar pdf-nav pdf-nav-smart">
@@ -510,7 +509,7 @@ function PdfViewer() {
           <span className="zoom-text">{Math.round(scale * 100)}%</span>
           <button
             className="tiny-action"
-            onClick={() => setScale((currentScale) => Math.min(4, currentScale + 0.15))}
+            onClick={() => setScale((currentScale) => Math.min(3, currentScale + 0.15))}
             aria-label="Zoom in"
           >
             +
@@ -519,9 +518,9 @@ function PdfViewer() {
             className="tiny-action"
             onClick={() => setHdMode((current) => !current)}
             aria-label="Toggle HD mode"
-            title={hdMode ? "Switch to faster scrolling" : "Switch to sharper Full HD rendering"}
+            title={hdMode ? "Switch to faster laptop scrolling" : "Switch to sharper HD rendering"}
           >
-            {hdMode ? "FHD" : "FAST"}
+            {hdMode ? "HD" : "FAST"}
           </button>
         </div>
       </div>
@@ -538,7 +537,7 @@ function PdfViewer() {
             pageRefs.current = new Array(loadedPages);
             requestAnimationFrame(updateDriveThumb);
           }}
-          loading={<p className="pdf-status">Loading crystal clear PDF...</p>}
+          loading={<p className="pdf-status">Loading PDF perfectly...</p>}
           error={
             <div className="empty-box">
               <h2>Failed to load PDF</h2>

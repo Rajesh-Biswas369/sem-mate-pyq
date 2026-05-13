@@ -181,11 +181,12 @@ function Subject() {
   const hasSectionAccess = (accessType) => {
     if (!supportsSectionAccess) return true;
 
-    // PYQ documents are not free now.
-    // They open only when the user has Full Subject Access
-    // through total trial, total promo, total payment, or admin access.
-    if (accessType === "pyq") return hasDirectAccess("total");
+    // PYQ PDFs are free after login.
+    // Without login, every PDF card stays locked.
+    if (accessType === "pyq") return Boolean(user || isAdmin);
 
+    // TOTALFREE / total payment / total trial unlocks every paid section.
+    // So Materials and Solutions must show Access Active when total access is active.
     if (accessType === "materials" || accessType === "solutions") {
       return Boolean(hasDirectAccess("total") || hasDirectAccess(accessType));
     }
@@ -401,6 +402,7 @@ function Subject() {
     const plan = getPlan(accessType);
     const active = hasSectionAccess(accessType);
     const directActive = hasDirectAccess(accessType);
+    const coveredByTotal = accessType !== "total" && !directActive && hasDirectAccess("total");
     const trialStarted = getTrialStarted(accessType);
     const title = options.title || plan.label;
     const description = options.description || "Unlock this section with payment, trial, or promo code.";
@@ -436,8 +438,10 @@ function Subject() {
             <button className="pay-btn" onClick={() => navigate("/login")}>
               Login to Continue ⚡
             </button>
-          ) : directActive ? (
-            <div className="access-chip">✅ {plan.label} Active</div>
+          ) : active ? (
+            <div className="access-chip">
+              ✅ {coveredByTotal ? "Covered by Full Subject Access" : `${plan.label} Active`}
+            </div>
           ) : (
             <>
               {!trialStarted && (
@@ -544,12 +548,25 @@ function Subject() {
         </>
       )}
 
-      {selectedFolder?.type === "pyq" &&
-        renderAccessPanel("total", {
-          title: "Unlock PYQ Documents",
-          description:
-            "PYQ PDFs are locked too. Open them using Full Subject Access through the 2-minute total trial, TOTALFREE promo, or payment.",
-        })}
+      {selectedFolder?.type === "pyq" && supportsSectionAccess && (
+        <section className={`premium-control-panel section-access-panel ${user ? "access-active" : ""}`}>
+          <div className="premium-copy">
+            <span className="premium-badge">📝 PYQ Access</span>
+            <h2>PYQ Documents</h2>
+            <p>PYQ PDFs are free after login. No payment or promo code is needed for PYQs.</p>
+          </div>
+
+          <div className="premium-actions">
+            {!user ? (
+              <button className="pay-btn" onClick={() => navigate("/login")}>
+                Login to Open PYQs ⚡
+              </button>
+            ) : (
+              <div className="access-chip">✅ PYQ Access Active</div>
+            )}
+          </div>
+        </section>
+      )}
 
       {selectedFolder?.type === "materials" &&
         renderAccessPanel("materials", {
@@ -631,7 +648,11 @@ function Subject() {
 
                     {locked ? (
                       <span className="locked-label">
-                        {!user ? "Login for Trial/Payment" : "Unlock Required"}
+                        {!user
+                          ? currentAccessType === "pyq"
+                            ? "Login Required"
+                            : "Login for Trial/Payment"
+                          : "Unlock Required"}
                       </span>
                     ) : (
                       <Link
