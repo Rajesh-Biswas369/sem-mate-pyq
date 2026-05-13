@@ -2854,3 +2854,196 @@ a {
     font-size: 0.9rem;
   }
 }
+
+
+/* =========================================
+   SMOOTH RUBBER ERASER UPDATE
+========================================= */
+.eraser-size-control {
+  border-color: rgba(248, 250, 252, 0.32);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.86), rgba(30, 41, 59, 0.72));
+}
+
+.eraser-size-control span {
+  color: #f8fafc;
+}
+
+.eraser-size-control i {
+  background: #f8fafc !important;
+  border-color: rgba(250, 204, 21, 0.75);
+  box-shadow:
+    0 0 0 2px rgba(15, 23, 42, 0.8),
+    0 0 16px rgba(250, 204, 21, 0.32);
+}
+
+.eraser-brush-cursor {
+  position: absolute;
+  z-index: 60;
+  border-radius: 999px;
+  border: 2px solid rgba(15, 23, 42, 0.95);
+  background: rgba(248, 250, 252, 0.48);
+  box-shadow:
+    0 0 0 2px rgba(250, 204, 21, 0.78),
+    0 0 18px rgba(250, 204, 21, 0.32);
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+.annotation-layer.editable:has(.eraser-brush-cursor) {
+  cursor: none;
+}
+
+.annotation-draw-svg {
+  pointer-events: none !important;
+}
+
+.annotation-draw-line {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+
+/* =========================================
+   MOBILE NAVBAR + TOOL TOGGLE + TWO-FINGER SCROLL
+========================================= */
+
+/* When no annotation tool is selected, the PDF page behaves normally. */
+.annotation-layer.tool-none,
+.annotation-layer.view-only {
+  pointer-events: none;
+  touch-action: auto;
+}
+
+.annotation-layer.editable.tool-active {
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.tool-hint-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  color: #fde68a;
+  background: rgba(250, 204, 21, 0.09);
+  border: 1px solid rgba(250, 204, 21, 0.22);
+  font-weight: 900;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* Compact PDF top bar for phones */
+@media (max-width: 768px) {
+  .drive-pdf-viewer {
+    padding: 6px 6px 0;
+  }
+
+  .pdf-nav-smart {
+    width: 100%;
+    max-width: 100%;
+    min-height: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 6px;
+    border-radius: 14px;
+    margin-bottom: 8px;
+  }
+
+  .pdf-nav-smart .nav-left {
+    order: 1;
+    gap: 5px;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
+  .pdf-nav-smart .pdf-header-title {
+    order: 2;
+    flex: 1 1 120px;
+    max-width: none;
+    min-width: 0;
+    font-size: 11px;
+    line-height: 1.15;
+    text-align: left;
+  }
+
+  .pdf-nav-smart .viewer-mode-toggle {
+    order: 3;
+    flex: 0 0 auto;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .pdf-nav-smart .viewer-mode-toggle button {
+    padding: 7px 11px;
+    font-size: 12px;
+  }
+
+  .pdf-nav-smart .zoom-controls {
+    order: 4;
+    flex: 1 1 100%;
+    justify-content: center;
+    gap: 5px;
+    padding: 4px 6px;
+  }
+
+  .pdf-nav-smart .tiny-action {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    font-size: 15px;
+  }
+
+  .pdf-nav-smart .page-counter {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .pdf-nav-smart .zoom-text {
+    min-width: 38px;
+    font-size: 11px;
+  }
+
+  .pdf-nav-smart .tiny-action[title*="ultra"],
+  .pdf-nav-smart .tiny-action[title*="faster"] {
+    min-width: 54px;
+    width: auto;
+    padding: 0 8px;
+    font-size: 11px;
+  }
+
+  .drive-pdf-scroll-area {
+    height: calc(100vh - 104px);
+    padding-top: 8px;
+  }
+}
+
+@media (max-width: 520px) {
+  .pdf-nav-smart .pdf-header-title {
+    display: none;
+  }
+
+  .pdf-nav-smart .viewer-mode-toggle {
+    flex: 1 1 132px;
+    justify-content: center;
+  }
+
+  .pdf-nav-smart .viewer-mode-toggle button {
+    flex: 1;
+  }
+
+  .annotation-toolbar {
+    top: 74px;
+  }
+
+  .tool-hint-pill {
+    font-size: 12px;
+    min-height: 36px;
+    padding: 8px 12px;
+  }
+}

@@ -239,7 +239,7 @@ function PdfViewer() {
   const [hdMode, setHdMode] = useState(true);
 
   const [viewerMode, setViewerMode] = useState("view");
-  const [editTool, setEditTool] = useState("highlight");
+  const [editTool, setEditTool] = useState("");
   const [annotationColor, setAnnotationColor] = useState(ANNOTATION_COLORS[0].value);
   const [penSize, setPenSize] = useState(DEFAULT_PEN_SIZE);
   const [annotations, setAnnotations] = useState([]);
@@ -247,6 +247,7 @@ function PdfViewer() {
   const [selectedAnnotationId, setSelectedAnnotationId] = useState("");
   const [draftRect, setDraftRect] = useState(null);
   const [draftPath, setDraftPath] = useState(null);
+  const [eraserPoint, setEraserPoint] = useState(null);
   const [pendingImageFile, setPendingImageFile] = useState(null);
   const [imageUploading, setImageUploading] = useState(false);
 
@@ -258,6 +259,10 @@ function PdfViewer() {
   const isDraggingRef = useRef(false);
   const driveScrollVisibleRef = useRef(false);
   const imageInputRef = useRef(null);
+  const annotationsRef = useRef([]);
+  const lastEraserPointRef = useRef(null);
+  const twoFingerScrollRef = useRef(false);
+  const lastTwoFingerYRef = useRef(0);
 
   const isMobile = viewportWidth <= 768;
   const shouldUseVirtualPages = isMobile || (numPages || 0) > DESKTOP_PAGE_RENDER_LIMIT;
@@ -316,6 +321,16 @@ function PdfViewer() {
         hasPaidDirect("total") ||
         (currentAccessType !== "pyq" && hasPaidDirect(currentAccessType)))
   );
+
+  const eraserRadius = useMemo(() => {
+    // Uses the same range as the pen-size slider, but a slightly wider
+    // radius so it feels like a real rubber/eraser.
+    return clamp(penSize * 2.2, 0.45, 4.2);
+  }, [penSize]);
+
+  useEffect(() => {
+    annotationsRef.current = annotations;
+  }, [annotations]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
@@ -591,6 +606,157 @@ function PdfViewer() {
     return Math.abs(pageNumber - currentPage) <= pagesAroundCurrent;
   };
 
+  const isBreakPoint = (point) => Boolean(point?.break);
+
+  const drawablePointCount = (points = []) =>
+    points.filter((point) => !isBreakPoint(point) && Number.isFinite(point.x) && Number.isFinite(point.y)).length;
+
+  const trimBreakPoints = (points = []) => {
+    const cleaned = [];
+
+    points.forEach((point) => {
+      if (isBreakPoint(point)) {
+        if (cleaned.length > 0 && !isBreakPoint(cleaned[cleaned.length - 1])) {
+          cleaned.push({ break: true });
+        }
+        return;
+      }
+
+      if (Number.isFinite(point?.x) && Number.isFinite(point?.y)) {
+        cleaned.push({ x: point.x, y: point.y });
+      }
+    });
+
+    while (cleaned.length && isBreakPoint(cleaned[0])) cleaned.shift();
+    while (cleaned.length && isBreakPoint(cleaned[cleaned.length - 1])) cleaned.pop();
+
+    return cleaned;
+  };
+
+  const distanceBetweenPoints = (first, second) =>
+    Math.hypot((first?.x || 0) - (second?.x || 0), (first?.y || 0) - (second?.y || 0));
+
+  const circleIntersectsRect = (point, radius, annotation) => {
+    const left = Number(annotation.x) || 0;
+    const top = Number(annotation.y) || 0;
+    const right = left + (Number(annotation.width) || 0);
+    const bottom = top + (Number(annotation.height) || 0);
+
+    const closestX = clamp(point.x, left, right);
+    const closestY = clamp(point.y, top, bottom);
+
+    return Math.hypot(point.x - closestX, point.y - closestY) <= radius;
+  };
+
+  const eraseDrawingPoints = (points = [], point, radius) => {
+    let changed = false;
+    const nextPoints = [];
+
+    points.forEach((item) => {
+      if (isBreakPoint(item)) {
+        if (nextPoints.length > 0 && !isBreakPoint(nextPoints[nextPoints.length - 1])) {
+          nextPoints.push({ break: true });
+        }
+        return;
+      }
+
+      if (!Number.isFinite(item?.x) || !Number.isFinite(item?.y)) return;
+
+      const shouldErase = distanceBetweenPoints(item, point) <= radius;
+
+      if (shouldErase) {
+        changed = true;
+        if (nextPoints.length > 0 && !isBreakPoint(nextPoints[nextPoints.length - 1])) {
+          nextPoints.push({ break: true });
+        }
+        return;
+      }
+
+      nextPoints.push({ x: item.x, y: item.y });
+    });
+
+    return {
+      changed,
+      points: trimBreakPoints(nextPoints),
+    };
+  };
+
+  const processEraserOperations = async (operations = []) => {
+    await Promise.all(
+      operations.map(async (operation) => {
+        try {
+          if (operation.type === "delete") {
+            await deleteDoc(doc(annotationCollectionRef, operation.id));
+          }
+
+          if (operation.type === "update") {
+            await updateDoc(doc(annotationCollectionRef, operation.id), {
+              ...operation.changes,
+              updatedAt: serverTimestamp(),
+            });
+          }
+        } catch (error) {
+          console.error("Eraser operation error:", error);
+          setAnnotationMessage("Could not fully erase annotation. Check Firestore rules.");
+        }
+      })
+    );
+  };
+
+  const eraseAnnotationsAtPoint = (point, pageNumber) => {
+    if (!annotationCollectionRef || !canEdit) return;
+
+    const sourceAnnotations = annotationsRef.current || [];
+    const operations = [];
+    let changed = false;
+
+    const nextAnnotations = sourceAnnotations.reduce((items, annotation) => {
+      if (annotation.pageNumber !== pageNumber) {
+        items.push(annotation);
+        return items;
+      }
+
+      if (annotation.type === "drawing") {
+        const erased = eraseDrawingPoints(annotation.points || [], point, eraserRadius);
+
+        if (!erased.changed) {
+          items.push(annotation);
+          return items;
+        }
+
+        changed = true;
+
+        if (drawablePointCount(erased.points) < 3) {
+          operations.push({ type: "delete", id: annotation.id });
+          return items;
+        }
+
+        const updatedAnnotation = { ...annotation, points: erased.points };
+        operations.push({ type: "update", id: annotation.id, changes: { points: erased.points } });
+        items.push(updatedAnnotation);
+        return items;
+      }
+
+      if (["highlight", "text", "image"].includes(annotation.type)) {
+        if (circleIntersectsRect(point, eraserRadius, annotation)) {
+          changed = true;
+          operations.push({ type: "delete", id: annotation.id });
+          return items;
+        }
+      }
+
+      items.push(annotation);
+      return items;
+    }, []);
+
+    if (!changed) return;
+
+    annotationsRef.current = nextAnnotations;
+    setAnnotations(nextAnnotations);
+    setSelectedAnnotationId("");
+    processEraserOperations(operations);
+  };
+
   const saveAnnotation = async (payload) => {
     if (!annotationCollectionRef || !user || !canEdit) {
       setAnnotationMessage("Edit mode is available only after payment access.");
@@ -671,13 +837,77 @@ function PdfViewer() {
     );
   };
 
+  const getAverageTouchY = (touches) => {
+    if (!touches?.length) return 0;
+
+    let total = 0;
+    for (let index = 0; index < touches.length; index += 1) {
+      total += touches[index].clientY;
+    }
+
+    return total / touches.length;
+  };
+
+  const cancelActiveAnnotationDrafts = () => {
+    setDraftRect(null);
+    setDraftPath(null);
+    setEraserPoint(null);
+    lastEraserPointRef.current = null;
+  };
+
+  const handleAnnotationTouchStart = (event) => {
+    // Mobile edit mode: one finger annotates, two fingers scroll the PDF.
+    if (!isMobile || !editTool || viewerMode !== "edit" || !canEdit) return;
+
+    if (event.touches.length >= 2) {
+      event.preventDefault();
+      twoFingerScrollRef.current = true;
+      lastTwoFingerYRef.current = getAverageTouchY(event.touches);
+      cancelActiveAnnotationDrafts();
+    }
+  };
+
+  const handleAnnotationTouchMove = (event) => {
+    if (!isMobile || !twoFingerScrollRef.current) return;
+
+    if (event.touches.length >= 2) {
+      event.preventDefault();
+
+      const nextY = getAverageTouchY(event.touches);
+      const deltaY = lastTwoFingerYRef.current - nextY;
+      lastTwoFingerYRef.current = nextY;
+
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop += deltaY;
+      }
+    }
+  };
+
+  const handleAnnotationTouchEnd = (event) => {
+    if (!isMobile) return;
+
+    if (event.touches.length < 2) {
+      twoFingerScrollRef.current = false;
+      lastTwoFingerYRef.current = 0;
+    }
+  };
+
   const handleOverlayPointerDown = (event, pageNumber) => {
-    if (!canEdit || viewerMode !== "edit") return;
+    if (!canEdit || viewerMode !== "edit" || !editTool || twoFingerScrollRef.current) return;
     if (event.button !== 0) return;
-    if (event.target.closest(".annotation-item")) return;
+    if (editTool !== "eraser" && event.target.closest(".annotation-item")) return;
 
     const overlay = event.currentTarget;
     const point = getPointerPercent(event, overlay);
+
+    if (editTool === "eraser") {
+      event.preventDefault();
+      overlay.setPointerCapture?.(event.pointerId);
+      lastEraserPointRef.current = point;
+      setEraserPoint({ pageNumber, ...point });
+      eraseAnnotationsAtPoint(point, pageNumber);
+      return;
+    }
 
     if (editTool === "image") {
       placeImageAnnotation(point, pageNumber);
@@ -716,8 +946,20 @@ function PdfViewer() {
   };
 
   const handleOverlayPointerMove = (event, pageNumber) => {
+    if (twoFingerScrollRef.current) return;
+
     const overlay = event.currentTarget;
     const point = getPointerPercent(event, overlay);
+
+    if (eraserPoint?.pageNumber === pageNumber) {
+      const lastPoint = lastEraserPointRef.current;
+      if (!lastPoint || distanceBetweenPoints(lastPoint, point) >= eraserRadius * 0.28) {
+        lastEraserPointRef.current = point;
+        eraseAnnotationsAtPoint(point, pageNumber);
+      }
+      setEraserPoint({ pageNumber, ...point });
+      return;
+    }
 
     if (draftRect?.pageNumber === pageNumber) {
       setDraftRect((previous) => ({ ...previous, end: point }));
@@ -735,7 +977,15 @@ function PdfViewer() {
   };
 
   const handleOverlayPointerUp = (event, pageNumber) => {
+    if (twoFingerScrollRef.current) return;
+
     event.currentTarget.releasePointerCapture?.(event.pointerId);
+
+    if (eraserPoint?.pageNumber === pageNumber) {
+      setEraserPoint(null);
+      lastEraserPointRef.current = null;
+      return;
+    }
 
     if (draftRect?.pageNumber === pageNumber) {
       const rect = normaliseRect(draftRect.start, draftRect.end);
@@ -768,10 +1018,7 @@ function PdfViewer() {
   const beginImageTransform = (event, annotation, mode = "move") => {
     if (!canEdit || viewerMode !== "edit") return;
 
-    if (editTool === "eraser") {
-      deleteAnnotation(annotation.id);
-      return;
-    }
+    if (editTool === "eraser") return;
 
     event.preventDefault();
     event.stopPropagation();
@@ -827,13 +1074,12 @@ function PdfViewer() {
 
   const handleAnnotationClick = (event, annotation) => {
     if (!canEdit || viewerMode !== "edit") return;
+
+    // In eraser mode, do not use select/delete behaviour.
+    // Let the event bubble to the page overlay so the circular rubber eraser works smoothly.
+    if (editTool === "eraser") return;
+
     event.stopPropagation();
-
-    if (editTool === "eraser") {
-      deleteAnnotation(annotation.id);
-      return;
-    }
-
     setSelectedAnnotationId(annotation.id);
   };
 
@@ -857,7 +1103,23 @@ function PdfViewer() {
     }
 
     if (annotation.type === "drawing") {
-      const points = (annotation.points || []).map((point) => `${point.x},${point.y}`).join(" ");
+      const segments = [];
+      let activeSegment = [];
+
+      (annotation.points || []).forEach((point) => {
+        if (isBreakPoint(point)) {
+          if (activeSegment.length > 1) segments.push(activeSegment);
+          activeSegment = [];
+          return;
+        }
+
+        if (Number.isFinite(point?.x) && Number.isFinite(point?.y)) {
+          activeSegment.push(point);
+        }
+      });
+
+      if (activeSegment.length > 1) segments.push(activeSegment);
+
       return (
         <svg
           key={annotation.id}
@@ -866,17 +1128,20 @@ function PdfViewer() {
           preserveAspectRatio="none"
           aria-label="Pen drawing annotation"
         >
-          <polyline
-            className="annotation-draw-line"
-            points={points}
-            fill="none"
-            stroke={annotation.color || "#facc15"}
-            strokeWidth={annotation.strokeWidth || 0.45}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            vectorEffect="non-scaling-stroke"
-            onPointerDown={(event) => handleAnnotationClick(event, annotation)}
-          />
+          {segments.map((segment, segmentIndex) => (
+            <polyline
+              key={`${annotation.id}_segment_${segmentIndex}`}
+              className="annotation-draw-line"
+              points={segment.map((point) => `${point.x},${point.y}`).join(" ")}
+              fill="none"
+              stroke={annotation.color || "#facc15"}
+              strokeWidth={annotation.strokeWidth || 0.45}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+              onPointerDown={(event) => handleAnnotationClick(event, annotation)}
+            />
+          ))}
         </svg>
       );
     }
@@ -928,11 +1193,17 @@ function PdfViewer() {
 
     return (
       <div
-        className={`annotation-layer ${viewerMode === "edit" && canEdit ? "editable" : "view-only"}`}
+        className={`annotation-layer ${
+          viewerMode === "edit" && canEdit && editTool ? "editable tool-active" : "view-only"
+        } ${editTool ? `tool-${editTool}` : "tool-none"}`}
         onPointerDown={(event) => handleOverlayPointerDown(event, pageNumber)}
         onPointerMove={(event) => handleOverlayPointerMove(event, pageNumber)}
         onPointerUp={(event) => handleOverlayPointerUp(event, pageNumber)}
         onPointerCancel={(event) => handleOverlayPointerUp(event, pageNumber)}
+        onTouchStart={handleAnnotationTouchStart}
+        onTouchMove={handleAnnotationTouchMove}
+        onTouchEnd={handleAnnotationTouchEnd}
+        onTouchCancel={handleAnnotationTouchEnd}
       >
         {pageAnnotations.map((annotation) => renderAnnotation(annotation))}
 
@@ -945,6 +1216,18 @@ function PdfViewer() {
               width: `${draftBox.width}%`,
               height: `${draftBox.height}%`,
               backgroundColor: draftRect.color,
+            }}
+          />
+        )}
+
+        {eraserPoint?.pageNumber === pageNumber && (
+          <div
+            className="eraser-brush-cursor"
+            style={{
+              left: `${eraserPoint.x - eraserRadius}%`,
+              top: `${eraserPoint.y - eraserRadius}%`,
+              width: `${eraserRadius * 2}%`,
+              height: `${eraserRadius * 2}%`,
             }}
           />
         )}
@@ -1091,12 +1374,16 @@ function PdfViewer() {
                 key={tool}
                 type="button"
                 className={editTool === tool ? "active" : ""}
-                onClick={() => setEditTool(tool)}
+                onClick={() => setEditTool((currentTool) => (currentTool === tool ? "" : tool))}
               >
                 {label}
               </button>
             ))}
           </div>
+
+          {!editTool && (
+            <span className="tool-hint-pill">Tap a tool to edit • tap again to deselect</span>
+          )}
 
           <div className="annotation-color-row">
             {ANNOTATION_COLORS.map((color) => (
@@ -1112,8 +1399,11 @@ function PdfViewer() {
             ))}
           </div>
 
-          <label className="pen-size-control" title="Change pen thickness">
-            <span>Pen {Math.round(penSize * 100)}%</span>
+          <label
+            className={`pen-size-control ${editTool === "eraser" ? "eraser-size-control" : ""}`}
+            title={editTool === "eraser" ? "Change eraser radius" : editTool === "pen" ? "Change pen thickness" : "Pen/Eraser size"}
+          >
+            <span>{editTool === "eraser" ? "Erase" : editTool === "pen" ? "Pen" : "Size"} {Math.round(penSize * 100)}%</span>
             <input
               type="range"
               min={MIN_PEN_SIZE}
@@ -1121,14 +1411,14 @@ function PdfViewer() {
               step="0.02"
               value={penSize}
               onChange={(event) => setPenSize(Number(event.target.value))}
-              aria-label="Pen size"
+              aria-label={editTool === "eraser" ? "Eraser size" : "Pen size"}
             />
             <i
               aria-hidden="true"
               style={{
                 width: `${Math.max(8, penSize * 18)}px`,
                 height: `${Math.max(8, penSize * 18)}px`,
-                backgroundColor: annotationColor,
+                backgroundColor: editTool === "eraser" ? "#f8fafc" : annotationColor,
               }}
             />
           </label>
@@ -1139,14 +1429,6 @@ function PdfViewer() {
           >
             Image off
           </span>
-
-          <button
-            type="button"
-            disabled={!selectedAnnotationId}
-            onClick={() => deleteAnnotation(selectedAnnotationId)}
-          >
-            Delete Selected
-          </button>
 
           <button type="button" className="danger" onClick={clearAllAnnotations}>
             Clear All
