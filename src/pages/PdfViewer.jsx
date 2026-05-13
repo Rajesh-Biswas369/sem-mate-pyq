@@ -1,8 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { Document, Page, pdfjs } from "react-pdf";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+  writeBatch,
+} from "firebase/firestore";
 import { pyqData } from "../data/pyqData";
-import { auth } from "../firebase";
+import { auth, db } from "../firebase";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -11,8 +24,33 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.vers
 
 const ADMIN_EMAILS = ["maxjoy146@gmail.com", "kk9327721@gmail.com", "tamajitray.5@gmail.com"];
 const TRIAL_SECONDS = 120;
-const DESKTOP_PAGE_RENDER_LIMIT = 30;
+const DESKTOP_PAGE_RENDER_LIMIT = 18;
 const THUMB_HEIGHT = 48;
+const DEFAULT_DESKTOP_SCALE = 1.18;
+const DEFAULT_MOBILE_SCALE = 1.04;
+const MIN_ZOOM = 0.85;
+const MAX_ZOOM = 4.5;
+const MIN_DESKTOP_DPR = 3;
+const MAX_DESKTOP_DPR = 4;
+const MIN_MOBILE_DPR = 2.25;
+const MAX_MOBILE_DPR = 3.2;
+const MIN_PEN_SIZE = 0.18;
+const MAX_PEN_SIZE = 1.6;
+const DEFAULT_PEN_SIZE = 0.45;
+
+const ANNOTATION_COLORS = [
+  { name: "Yellow", value: "#facc15" },
+  { name: "Green", value: "#22c55e" },
+  { name: "Blue", value: "#3b82f6" },
+  { name: "Pink", value: "#ec4899" },
+  { name: "Orange", value: "#f97316" },
+  { name: "Purple", value: "#a855f7" },
+];
+
+function getInitialScale() {
+  if (typeof window === "undefined") return DEFAULT_DESKTOP_SCALE;
+  return window.innerWidth <= 768 ? DEFAULT_MOBILE_SCALE : DEFAULT_DESKTOP_SCALE;
+}
 
 function safeDecode(value = "") {
   try {
@@ -37,6 +75,18 @@ function normalizeFileUrl(rawValue = "") {
 
 function cleanKeyPart(value = "") {
   return String(value).replace(/[^a-zA-Z0-9_-]/g, "");
+}
+
+function makePdfId(fileUrl = "") {
+  let hash = 0;
+  const input = normalizeFileUrl(fileUrl);
+
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash << 5) - hash + input.charCodeAt(index);
+    hash |= 0;
+  }
+
+  return `${cleanKeyPart(input).slice(0, 70)}_${Math.abs(hash) || Date.now()}`;
 }
 
 function getFolderAccessType(folder) {
@@ -88,7 +138,6 @@ function findFileContext(fileUrl) {
     }
   }
 
-  // Extra fallback for the SSM public folder. This prevents /viewer/Sem4/SSM/... bypass.
   if (normalizedUrl.startsWith("/Sem4/SSM/")) {
     const semester = pyqData.find((item) => item.semester === "Semester 4");
     const subject = semester?.subjects?.find(
@@ -106,6 +155,34 @@ function findFileContext(fileUrl) {
 function makeAccessKey(prefix, email, subjectName, accessType = "total") {
   if (!email || !subjectName) return "";
   return `${prefix}_${cleanKeyPart(email)}_${cleanKeyPart(subjectName)}_${accessType}`;
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function getPointerPercent(event, element) {
+  const rect = element.getBoundingClientRect();
+  const x = clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100);
+  const y = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
+  return { x, y };
+}
+
+function normaliseRect(start, end) {
+  const x = Math.min(start.x, end.x);
+  const y = Math.min(start.y, end.y);
+  const width = Math.abs(end.x - start.x);
+  const height = Math.abs(end.y - start.y);
+  return { x, y, width, height };
+}
+
+function getAnnotationStyle(annotation) {
+  return {
+    left: `${annotation.x}%`,
+    top: `${annotation.y}%`,
+    width: `${annotation.width}%`,
+    height: `${annotation.height}%`,
+  };
 }
 
 function PdfViewer() {
@@ -130,6 +207,7 @@ function PdfViewer() {
     return normalizeFileUrl(rawFileParam);
   }, [legacyPaper, location.state, rawFileParam]);
 
+  const pdfId = useMemo(() => makePdfId(fileUrl), [fileUrl]);
   const fileContext = useMemo(() => findFileContext(fileUrl), [fileUrl]);
   const subject = fileContext?.subject || null;
   const currentAccessType = location.state?.accessType || fileContext?.accessType || inferAccessTypeFromUrl(fileUrl);
@@ -153,14 +231,24 @@ function PdfViewer() {
 
   const [numPages, setNumPages] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(getInitialScale);
   const [viewportWidth, setViewportWidth] = useState(
     typeof window === "undefined" ? 900 : window.innerWidth
   );
   const [showDriveScroll, setShowDriveScroll] = useState(false);
-  const [hdMode, setHdMode] = useState(
-    () => typeof window !== "undefined" && window.innerWidth <= 768
-  );
+  const [hdMode, setHdMode] = useState(true);
+
+  const [viewerMode, setViewerMode] = useState("view");
+  const [editTool, setEditTool] = useState("highlight");
+  const [annotationColor, setAnnotationColor] = useState(ANNOTATION_COLORS[0].value);
+  const [penSize, setPenSize] = useState(DEFAULT_PEN_SIZE);
+  const [annotations, setAnnotations] = useState([]);
+  const [annotationMessage, setAnnotationMessage] = useState("");
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState("");
+  const [draftRect, setDraftRect] = useState(null);
+  const [draftPath, setDraftPath] = useState(null);
+  const [pendingImageFile, setPendingImageFile] = useState(null);
+  const [imageUploading, setImageUploading] = useState(false);
 
   const scrollContainerRef = useRef(null);
   const thumbRef = useRef(null);
@@ -169,10 +257,65 @@ function PdfViewer() {
   const scrollRafRef = useRef(null);
   const isDraggingRef = useRef(false);
   const driveScrollVisibleRef = useRef(false);
+  const imageInputRef = useRef(null);
 
   const isMobile = viewportWidth <= 768;
   const shouldUseVirtualPages = isMobile || (numPages || 0) > DESKTOP_PAGE_RENDER_LIMIT;
   const pagesAroundCurrent = isMobile ? 1 : 3;
+
+  const isAdmin = Boolean(user && ADMIN_EMAILS.includes(user.email));
+
+  const annotationCollectionRef = useMemo(() => {
+    if (!user?.uid || !pdfId || !db) return null;
+    return collection(db, "users", user.uid, "pdfAnnotations", pdfId, "items");
+  }, [user, pdfId]);
+
+  const hasPaidDirect = (accessType) => {
+    if (!subjectRequiresPayment) return false;
+    if (!user) return false;
+    if (isAdmin) return true;
+
+    const paidKey = makeAccessKey("paid", user.email, subject?.name, accessType);
+    return Boolean(paidKey && localStorage.getItem(paidKey) === "true");
+  };
+
+  const hasTrialDirect = (accessType) => {
+    if (!subjectRequiresPayment) return true;
+    if (!user) return false;
+    if (isAdmin) return true;
+    return trialTimes[accessType] > 0;
+  };
+
+  const hasDirectAccess = (accessType) => {
+    if (!subjectRequiresPayment) return true;
+    return Boolean(hasPaidDirect(accessType) || hasTrialDirect(accessType));
+  };
+
+  const hasAccess = (() => {
+    if (!subjectRequiresPayment) return true;
+    if (!user) return false;
+    if (isAdmin) return true;
+
+    // PYQ PDFs are free immediately after login.
+    if (currentAccessType === "pyq") return true;
+
+    // Full Subject Access unlocks Materials and Solutions too.
+    if (hasDirectAccess("total")) return true;
+
+    if (currentAccessType === "materials" || currentAccessType === "solutions") {
+      return hasDirectAccess(currentAccessType);
+    }
+
+    return false;
+  })();
+
+  const canEdit = Boolean(
+    user &&
+      hasAccess &&
+      (isAdmin ||
+        hasPaidDirect("total") ||
+        (currentAccessType !== "pyq" && hasPaidDirect(currentAccessType)))
+  );
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
@@ -181,6 +324,18 @@ function PdfViewer() {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      const key = event.key.toLowerCase();
+      if ((event.ctrlKey || event.metaKey) && (key === "s" || key === "p")) {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   useEffect(() => {
@@ -204,7 +359,11 @@ function PdfViewer() {
   useEffect(() => {
     setNumPages(null);
     setCurrentPage(1);
-    setScale(1);
+    setScale(getInitialScale());
+    setViewerMode("view");
+    setSelectedAnnotationId("");
+    setDraftRect(null);
+    setDraftPath(null);
     pageRefs.current = [];
 
     const container = scrollContainerRef.current;
@@ -217,17 +376,6 @@ function PdfViewer() {
       cancelAnimationFrame(scrollRafRef.current);
     };
   }, []);
-
-  const isAdmin = Boolean(user && ADMIN_EMAILS.includes(user.email));
-
-  const hasDirectAccess = (accessType) => {
-    if (!subjectRequiresPayment) return true;
-    if (!user) return false;
-    if (isAdmin) return true;
-
-    const paidKey = makeAccessKey("paid", user.email, subject?.name, accessType);
-    return Boolean(paidKey && localStorage.getItem(paidKey) === "true") || trialTimes[accessType] > 0;
-  };
 
   useEffect(() => {
     if (!user || !subject || !subjectRequiresPayment) {
@@ -263,28 +411,37 @@ function PdfViewer() {
     return () => clearInterval(timer);
   }, [trialTimes]);
 
-  const hasAccess = (() => {
-    if (!subjectRequiresPayment) return true;
-    if (!user) return false;
-    if (isAdmin) return true;
-
-    // PYQ PDFs are free immediately after login.
-    if (currentAccessType === "pyq") return true;
-
-    // Full Subject Access unlocks Materials and Solutions too.
-    if (hasDirectAccess("total")) return true;
-
-    if (currentAccessType === "materials" || currentAccessType === "solutions") {
-      return hasDirectAccess(currentAccessType);
+  useEffect(() => {
+    if (!annotationCollectionRef || !user || !hasAccess) {
+      setAnnotations([]);
+      return undefined;
     }
 
-    return false;
-  })();
+    const q = query(annotationCollectionRef, orderBy("createdAt", "asc"));
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        setAnnotations(
+          snapshot.docs.map((item) => ({
+            id: item.id,
+            ...item.data(),
+          }))
+        );
+      },
+      (error) => {
+        console.error("Annotation loading error:", error);
+        setAnnotationMessage("Could not load saved annotations. Check Firestore rules.");
+      }
+    );
+
+    return () => unsubscribe();
+  }, [annotationCollectionRef, user, hasAccess]);
 
   const pageWidth = useMemo(() => {
-    const sideGap = isMobile ? 18 : 96;
-    const maxBaseWidth = isMobile ? viewportWidth - sideGap : 820;
-    return Math.max(300, maxBaseWidth * scale);
+    const sideGap = isMobile ? 10 : 44;
+    const desktopReadableWidth = Math.min(Math.max(viewportWidth * 0.78, 980), 1180);
+    const maxBaseWidth = isMobile ? viewportWidth - sideGap : desktopReadableWidth;
+    return Math.max(330, Math.round(maxBaseWidth * scale));
   }, [isMobile, scale, viewportWidth]);
 
   const estimatedPageHeight = useMemo(() => {
@@ -292,18 +449,23 @@ function PdfViewer() {
   }, [pageWidth]);
 
   const devicePixelRatio = useMemo(() => {
-    if (typeof window === "undefined") return 1.25;
+    if (typeof window === "undefined") return MIN_DESKTOP_DPR;
 
     const screenDpr = window.devicePixelRatio || 1;
 
-    // Mobile keeps sharper rendering because it was already working well.
-    // Laptop/desktop starts in FAST mode to stop scrollbar and scroll jank.
     if (hdMode) {
-      return isMobile ? Math.min(screenDpr, 2.5) : Math.min(screenDpr, 1.75);
+      const zoomBoost = scale >= 2 ? 0.35 : 0;
+      const baseDpr = isMobile
+        ? Math.max(screenDpr, MIN_MOBILE_DPR)
+        : Math.max(screenDpr, MIN_DESKTOP_DPR);
+
+      return isMobile
+        ? Math.min(baseDpr + zoomBoost, MAX_MOBILE_DPR)
+        : Math.min(baseDpr + zoomBoost, MAX_DESKTOP_DPR);
     }
 
-    return isMobile ? Math.min(screenDpr, 1.6) : Math.min(screenDpr, 1.25);
-  }, [hdMode, isMobile]);
+    return isMobile ? Math.min(Math.max(screenDpr, 1.35), 1.75) : Math.min(Math.max(screenDpr, 1.5), 2);
+  }, [hdMode, isMobile, scale]);
 
   useEffect(() => {
     if (!numPages || !scrollContainerRef.current || !hasAccess) return;
@@ -363,7 +525,6 @@ function PdfViewer() {
     const maxThumbMove = Math.max(clientHeight - thumbHeight, 0);
     const nextY = Math.round(progress * maxThumbMove);
 
-    // transform is smoother than changing top on laptop/desktop.
     thumb.style.top = "0px";
     thumb.style.transform = `translate3d(0, ${nextY}px, 0)`;
   };
@@ -424,12 +585,385 @@ function PdfViewer() {
   };
 
   const shouldRenderPage = (pageNumber) => {
-    // On laptop/desktop, render normal PDFs fully once.
-    // This avoids continuous page mount/unmount while scrolling, which caused scrollbar lag.
     if (!shouldUseVirtualPages) return true;
 
     if (pageNumber === 1 || pageNumber === numPages) return true;
     return Math.abs(pageNumber - currentPage) <= pagesAroundCurrent;
+  };
+
+  const saveAnnotation = async (payload) => {
+    if (!annotationCollectionRef || !user || !canEdit) {
+      setAnnotationMessage("Edit mode is available only after payment access.");
+      return;
+    }
+
+    try {
+      await addDoc(annotationCollectionRef, {
+        ...payload,
+        fileUrl,
+        pdfId,
+        userEmail: user.email,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      setAnnotationMessage("");
+    } catch (error) {
+      console.error("Annotation save error:", error);
+      setAnnotationMessage("Could not auto-save annotation. Check Firestore rules.");
+    }
+  };
+
+  const deleteAnnotation = async (annotationId) => {
+    if (!annotationCollectionRef || !annotationId || !canEdit) return;
+
+    try {
+      await deleteDoc(doc(annotationCollectionRef, annotationId));
+      setSelectedAnnotationId("");
+      setAnnotationMessage("");
+    } catch (error) {
+      console.error("Annotation delete error:", error);
+      setAnnotationMessage("Could not delete annotation.");
+    }
+  };
+
+  const updateAnnotation = async (annotationId, changes) => {
+    if (!annotationCollectionRef || !annotationId || !canEdit) return;
+
+    try {
+      await updateDoc(doc(annotationCollectionRef, annotationId), {
+        ...changes,
+        updatedAt: serverTimestamp(),
+      });
+      setAnnotationMessage("");
+    } catch (error) {
+      console.error("Annotation update error:", error);
+      setAnnotationMessage("Could not auto-save changes.");
+    }
+  };
+
+  const clearAllAnnotations = async () => {
+    if (!annotationCollectionRef || !canEdit) return;
+    const confirmed = window.confirm("Clear all annotations for this PDF? This cannot be undone.");
+    if (!confirmed) return;
+
+    try {
+      const snapshot = await getDocs(annotationCollectionRef);
+      const batch = writeBatch(db);
+      snapshot.forEach((item) => batch.delete(item.ref));
+      await batch.commit();
+      setSelectedAnnotationId("");
+      setAnnotationMessage("");
+    } catch (error) {
+      console.error("Clear annotations error:", error);
+      setAnnotationMessage("Could not clear annotations.");
+    }
+  };
+
+  const handleImageFileChange = () => {
+    setAnnotationMessage(
+      "Image upload is disabled because Firebase Storage requires Blaze. Highlights, pen drawings, and text notes still auto-save in Firestore."
+    );
+  };
+
+  const placeImageAnnotation = () => {
+    setAnnotationMessage(
+      "Image upload is disabled for now. Use Highlight, Pen, Text, or Eraser."
+    );
+  };
+
+  const handleOverlayPointerDown = (event, pageNumber) => {
+    if (!canEdit || viewerMode !== "edit") return;
+    if (event.button !== 0) return;
+    if (event.target.closest(".annotation-item")) return;
+
+    const overlay = event.currentTarget;
+    const point = getPointerPercent(event, overlay);
+
+    if (editTool === "image") {
+      placeImageAnnotation(point, pageNumber);
+      return;
+    }
+
+    if (editTool === "text") {
+      const noteText = window.prompt("Write your note:");
+      if (!noteText?.trim()) return;
+
+      saveAnnotation({
+        type: "text",
+        pageNumber,
+        x: clamp(point.x, 0, 86),
+        y: clamp(point.y, 0, 94),
+        width: 14,
+        height: 6,
+        color: annotationColor,
+        text: noteText.trim(),
+      });
+      return;
+    }
+
+    if (editTool === "highlight") {
+      event.preventDefault();
+      overlay.setPointerCapture?.(event.pointerId);
+      setDraftRect({ pageNumber, start: point, end: point, color: annotationColor });
+      return;
+    }
+
+    if (editTool === "pen") {
+      event.preventDefault();
+      overlay.setPointerCapture?.(event.pointerId);
+      setDraftPath({ pageNumber, points: [point], color: annotationColor, strokeWidth: penSize });
+    }
+  };
+
+  const handleOverlayPointerMove = (event, pageNumber) => {
+    const overlay = event.currentTarget;
+    const point = getPointerPercent(event, overlay);
+
+    if (draftRect?.pageNumber === pageNumber) {
+      setDraftRect((previous) => ({ ...previous, end: point }));
+      return;
+    }
+
+    if (draftPath?.pageNumber === pageNumber) {
+      setDraftPath((previous) => {
+        const lastPoint = previous.points[previous.points.length - 1];
+        const distance = Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y);
+        if (distance < 0.25) return previous;
+        return { ...previous, points: [...previous.points, point] };
+      });
+    }
+  };
+
+  const handleOverlayPointerUp = (event, pageNumber) => {
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+
+    if (draftRect?.pageNumber === pageNumber) {
+      const rect = normaliseRect(draftRect.start, draftRect.end);
+      if (rect.width > 0.8 && rect.height > 0.4) {
+        saveAnnotation({
+          type: "highlight",
+          pageNumber,
+          ...rect,
+          color: draftRect.color,
+          opacity: 0.34,
+        });
+      }
+      setDraftRect(null);
+    }
+
+    if (draftPath?.pageNumber === pageNumber) {
+      if (draftPath.points.length > 2) {
+        saveAnnotation({
+          type: "drawing",
+          pageNumber,
+          points: draftPath.points,
+          color: draftPath.color,
+          strokeWidth: draftPath.strokeWidth || penSize,
+        });
+      }
+      setDraftPath(null);
+    }
+  };
+
+  const beginImageTransform = (event, annotation, mode = "move") => {
+    if (!canEdit || viewerMode !== "edit") return;
+
+    if (editTool === "eraser") {
+      deleteAnnotation(annotation.id);
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    setSelectedAnnotationId(annotation.id);
+
+    const layer = event.currentTarget.closest(".annotation-layer");
+    if (!layer) return;
+
+    const layerRect = layer.getBoundingClientRect();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const original = {
+      x: Number(annotation.x) || 0,
+      y: Number(annotation.y) || 0,
+      width: Number(annotation.width) || 24,
+      height: Number(annotation.height) || 16,
+    };
+    let latest = original;
+
+    const onMove = (moveEvent) => {
+      moveEvent.preventDefault();
+      const dx = ((moveEvent.clientX - startX) / layerRect.width) * 100;
+      const dy = ((moveEvent.clientY - startY) / layerRect.height) * 100;
+
+      if (mode === "resize") {
+        latest = {
+          ...original,
+          width: clamp(original.width + dx, 5, 92 - original.x),
+          height: clamp(original.height + dy, 4, 92 - original.y),
+        };
+      } else {
+        latest = {
+          ...original,
+          x: clamp(original.x + dx, 0, 100 - original.width),
+          y: clamp(original.y + dy, 0, 100 - original.height),
+        };
+      }
+
+      setAnnotations((previous) =>
+        previous.map((item) => (item.id === annotation.id ? { ...item, ...latest } : item))
+      );
+    };
+
+    const onUp = () => {
+      updateAnnotation(annotation.id, latest);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+  };
+
+  const handleAnnotationClick = (event, annotation) => {
+    if (!canEdit || viewerMode !== "edit") return;
+    event.stopPropagation();
+
+    if (editTool === "eraser") {
+      deleteAnnotation(annotation.id);
+      return;
+    }
+
+    setSelectedAnnotationId(annotation.id);
+  };
+
+  const renderAnnotation = (annotation) => {
+    const selected = selectedAnnotationId === annotation.id;
+
+    if (annotation.type === "highlight") {
+      return (
+        <div
+          key={annotation.id}
+          className={`annotation-item annotation-highlight ${selected ? "selected" : ""}`}
+          style={{
+            ...getAnnotationStyle(annotation),
+            backgroundColor: annotation.color || "#facc15",
+            opacity: annotation.opacity || 0.34,
+          }}
+          onPointerDown={(event) => handleAnnotationClick(event, annotation)}
+          title="Highlight"
+        />
+      );
+    }
+
+    if (annotation.type === "drawing") {
+      const points = (annotation.points || []).map((point) => `${point.x},${point.y}`).join(" ");
+      return (
+        <svg
+          key={annotation.id}
+          className={`annotation-draw-svg ${selected ? "selected" : ""}`}
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          aria-label="Pen drawing annotation"
+        >
+          <polyline
+            className="annotation-draw-line"
+            points={points}
+            fill="none"
+            stroke={annotation.color || "#facc15"}
+            strokeWidth={annotation.strokeWidth || 0.45}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            onPointerDown={(event) => handleAnnotationClick(event, annotation)}
+          />
+        </svg>
+      );
+    }
+
+    if (annotation.type === "text") {
+      return (
+        <div
+          key={annotation.id}
+          className={`annotation-item annotation-note ${selected ? "selected" : ""}`}
+          style={{
+            ...getAnnotationStyle(annotation),
+            borderColor: annotation.color || "#facc15",
+          }}
+          onPointerDown={(event) => handleAnnotationClick(event, annotation)}
+          title={annotation.text}
+        >
+          {annotation.text}
+        </div>
+      );
+    }
+
+    if (annotation.type === "image") {
+      return (
+        <div
+          key={annotation.id}
+          className={`annotation-item annotation-image-box ${selected ? "selected" : ""}`}
+          style={getAnnotationStyle(annotation)}
+          onPointerDown={(event) => beginImageTransform(event, annotation, "move")}
+          title="Drag to move"
+        >
+          <img src={annotation.imageUrl} alt={annotation.imageName || "Annotation"} draggable="false" />
+          {viewerMode === "edit" && canEdit && (
+            <span
+              className="annotation-resize-handle"
+              onPointerDown={(event) => beginImageTransform(event, annotation, "resize")}
+              title="Resize"
+            />
+          )}
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  const renderAnnotationLayer = (pageNumber) => {
+    const pageAnnotations = annotations.filter((annotation) => annotation.pageNumber === pageNumber);
+    const draftBox = draftRect?.pageNumber === pageNumber ? normaliseRect(draftRect.start, draftRect.end) : null;
+
+    return (
+      <div
+        className={`annotation-layer ${viewerMode === "edit" && canEdit ? "editable" : "view-only"}`}
+        onPointerDown={(event) => handleOverlayPointerDown(event, pageNumber)}
+        onPointerMove={(event) => handleOverlayPointerMove(event, pageNumber)}
+        onPointerUp={(event) => handleOverlayPointerUp(event, pageNumber)}
+        onPointerCancel={(event) => handleOverlayPointerUp(event, pageNumber)}
+      >
+        {pageAnnotations.map((annotation) => renderAnnotation(annotation))}
+
+        {draftBox && (
+          <div
+            className="annotation-draft annotation-draft-highlight"
+            style={{
+              left: `${draftBox.x}%`,
+              top: `${draftBox.y}%`,
+              width: `${draftBox.width}%`,
+              height: `${draftBox.height}%`,
+              backgroundColor: draftRect.color,
+            }}
+          />
+        )}
+
+        {draftPath?.pageNumber === pageNumber && (
+          <svg className="annotation-draft-drawing" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <polyline
+              points={draftPath.points.map((point) => `${point.x},${point.y}`).join(" ")}
+              fill="none"
+              stroke={draftPath.color}
+              strokeWidth={draftPath.strokeWidth || penSize}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        )}
+      </div>
+    );
   };
 
   if (!fileUrl) {
@@ -498,10 +1032,29 @@ function PdfViewer() {
 
         <p className="pdf-header-title">{title}</p>
 
+        <div className="viewer-mode-toggle" aria-label="PDF mode">
+          <button
+            type="button"
+            className={viewerMode === "view" ? "active" : ""}
+            onClick={() => setViewerMode("view")}
+          >
+            View
+          </button>
+          <button
+            type="button"
+            className={viewerMode === "edit" ? "active" : ""}
+            disabled={!canEdit}
+            title={canEdit ? "Edit annotations" : "Edit mode is available only after paid access."}
+            onClick={() => setViewerMode("edit")}
+          >
+            Edit
+          </button>
+        </div>
+
         <div className="zoom-controls">
           <button
             className="tiny-action"
-            onClick={() => setScale((currentScale) => Math.max(0.75, currentScale - 0.15))}
+            onClick={() => setScale((currentScale) => Math.max(MIN_ZOOM, Number((currentScale - 0.2).toFixed(2))))}
             aria-label="Zoom out"
           >
             −
@@ -509,7 +1062,7 @@ function PdfViewer() {
           <span className="zoom-text">{Math.round(scale * 100)}%</span>
           <button
             className="tiny-action"
-            onClick={() => setScale((currentScale) => Math.min(3, currentScale + 0.15))}
+            onClick={() => setScale((currentScale) => Math.min(MAX_ZOOM, Number((currentScale + 0.2).toFixed(2))))}
             aria-label="Zoom in"
           >
             +
@@ -518,12 +1071,102 @@ function PdfViewer() {
             className="tiny-action"
             onClick={() => setHdMode((current) => !current)}
             aria-label="Toggle HD mode"
-            title={hdMode ? "Switch to faster laptop scrolling" : "Switch to sharper HD rendering"}
+            title={hdMode ? "Switch to faster rendering" : "Switch to ultra clear Full HD rendering"}
           >
-            {hdMode ? "HD" : "FAST"}
+            {hdMode ? "ULTRA" : "FAST"}
           </button>
         </div>
       </div>
+
+      {viewerMode === "edit" && canEdit && (
+        <div className="annotation-toolbar">
+          <div className="annotation-tool-group">
+            {[
+              ["highlight", "Highlight"],
+              ["pen", "Pen"],
+              ["text", "Note"],
+              ["eraser", "Eraser"],
+            ].map(([tool, label]) => (
+              <button
+                key={tool}
+                type="button"
+                className={editTool === tool ? "active" : ""}
+                onClick={() => setEditTool(tool)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="annotation-color-row">
+            {ANNOTATION_COLORS.map((color) => (
+              <button
+                key={color.value}
+                type="button"
+                className={annotationColor === color.value ? "selected" : ""}
+                style={{ backgroundColor: color.value }}
+                onClick={() => setAnnotationColor(color.value)}
+                aria-label={color.name}
+                title={color.name}
+              />
+            ))}
+          </div>
+
+          <label className="pen-size-control" title="Change pen thickness">
+            <span>Pen {Math.round(penSize * 100)}%</span>
+            <input
+              type="range"
+              min={MIN_PEN_SIZE}
+              max={MAX_PEN_SIZE}
+              step="0.02"
+              value={penSize}
+              onChange={(event) => setPenSize(Number(event.target.value))}
+              aria-label="Pen size"
+            />
+            <i
+              aria-hidden="true"
+              style={{
+                width: `${Math.max(8, penSize * 18)}px`,
+                height: `${Math.max(8, penSize * 18)}px`,
+                backgroundColor: annotationColor,
+              }}
+            />
+          </label>
+
+          <span
+            className="image-disabled-pill"
+            title="Image upload needs Firebase Storage Blaze plan. Firestore-only annotations are active."
+          >
+            Image off
+          </span>
+
+          <button
+            type="button"
+            disabled={!selectedAnnotationId}
+            onClick={() => deleteAnnotation(selectedAnnotationId)}
+          >
+            Delete Selected
+          </button>
+
+          <button type="button" className="danger" onClick={clearAllAnnotations}>
+            Clear All
+          </button>
+
+          <span className="autosave-pill">Auto-save ON</span>
+        </div>
+      )}
+
+      {viewerMode === "edit" && !canEdit && (
+        <div className="annotation-toolbar annotation-toolbar-locked">
+          🔒 Edit mode is available only after paid access. View mode is still available.
+        </div>
+      )}
+
+      {annotationMessage && (
+        <div className="annotation-message">
+          {annotationMessage}
+        </div>
+      )}
 
       <main
         className="pdf-stage pdf-scroll-area custom-hide-scrollbar drive-pdf-scroll-area"
@@ -560,17 +1203,23 @@ function PdfViewer() {
                   ref={(element) => {
                     pageRefs.current[index] = element;
                   }}
-                  style={{ minHeight: estimatedPageHeight }}
+                  style={{ minHeight: estimatedPageHeight, width: pageWidth }}
                 >
                   {renderThisPage ? (
-                    <Page
-                      pageNumber={pageNumber}
-                      width={pageWidth}
-                      renderTextLayer={false}
-                      renderAnnotationLayer={false}
-                      devicePixelRatio={devicePixelRatio}
-                      loading={<div className="pdf-page-loading">Loading page {pageNumber}...</div>}
-                    />
+                    <>
+                      <Page
+                        key={`${pageNumber}-${pageWidth}-${devicePixelRatio}-${hdMode ? "ultra" : "fast"}`}
+                        className="crystal-pdf-page"
+                        pageNumber={pageNumber}
+                        width={pageWidth}
+                        renderMode="canvas"
+                        renderTextLayer={false}
+                        renderAnnotationLayer={false}
+                        devicePixelRatio={devicePixelRatio}
+                        loading={<div className="pdf-page-loading">Loading page {pageNumber}...</div>}
+                      />
+                      {renderAnnotationLayer(pageNumber)}
+                    </>
                   ) : (
                     <div className="pdf-placeholder-content">Page {pageNumber}</div>
                   )}
