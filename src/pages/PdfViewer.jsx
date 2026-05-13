@@ -242,6 +242,7 @@ function PdfViewer() {
   const [editTool, setEditTool] = useState("");
   const [annotationColor, setAnnotationColor] = useState(ANNOTATION_COLORS[0].value);
   const [penSize, setPenSize] = useState(DEFAULT_PEN_SIZE);
+  const [penMode, setPenMode] = useState("curve");
   const [annotations, setAnnotations] = useState([]);
   const [annotationMessage, setAnnotationMessage] = useState("");
   const [selectedAnnotationId, setSelectedAnnotationId] = useState("");
@@ -837,6 +838,19 @@ function PdfViewer() {
     );
   };
 
+  const getStraightLineEndPoint = (start, current) => {
+    const deltaX = Math.abs((current?.x || 0) - (start?.x || 0));
+    const deltaY = Math.abs((current?.y || 0) - (start?.y || 0));
+
+    // Straight line mode snaps automatically:
+    // wider movement = horizontal line, taller movement = vertical line.
+    if (deltaX >= deltaY) {
+      return { x: current.x, y: start.y };
+    }
+
+    return { x: start.x, y: current.y };
+  };
+
   const getAverageTouchY = (touches) => {
     if (!touches?.length) return 0;
 
@@ -941,7 +955,7 @@ function PdfViewer() {
     if (editTool === "pen") {
       event.preventDefault();
       overlay.setPointerCapture?.(event.pointerId);
-      setDraftPath({ pageNumber, points: [point], color: annotationColor, strokeWidth: penSize });
+      setDraftPath({ pageNumber, points: [point], color: annotationColor, strokeWidth: penSize, penMode });
     }
   };
 
@@ -968,6 +982,15 @@ function PdfViewer() {
 
     if (draftPath?.pageNumber === pageNumber) {
       setDraftPath((previous) => {
+        if (!previous?.points?.length) return previous;
+
+        const startPoint = previous.points[0];
+
+        if (previous.penMode === "line") {
+          const snappedEnd = getStraightLineEndPoint(startPoint, point);
+          return { ...previous, points: [startPoint, snappedEnd] };
+        }
+
         const lastPoint = previous.points[previous.points.length - 1];
         const distance = Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y);
         if (distance < 0.25) return previous;
@@ -1002,13 +1025,16 @@ function PdfViewer() {
     }
 
     if (draftPath?.pageNumber === pageNumber) {
-      if (draftPath.points.length > 2) {
+      const minimumPoints = draftPath.penMode === "line" ? 2 : 3;
+
+      if (draftPath.points.length >= minimumPoints) {
         saveAnnotation({
           type: "drawing",
           pageNumber,
           points: draftPath.points,
           color: draftPath.color,
           strokeWidth: draftPath.strokeWidth || penSize,
+          penMode: draftPath.penMode || "curve",
         });
       }
       setDraftPath(null);
@@ -1380,6 +1406,29 @@ function PdfViewer() {
               </button>
             ))}
           </div>
+
+          {editTool === "pen" && (
+            <div className="pen-mode-bubble" aria-label="Pen mode">
+              <button
+                type="button"
+                className={penMode === "curve" ? "active" : ""}
+                onClick={() => setPenMode("curve")}
+                title="Free curved drawing"
+              >
+                <span className="pen-mode-icon curve-icon" aria-hidden="true"></span>
+                Curve
+              </button>
+              <button
+                type="button"
+                className={penMode === "line" ? "active" : ""}
+                onClick={() => setPenMode("line")}
+                title="Straight horizontal or vertical line"
+              >
+                <span className="pen-mode-icon line-icon" aria-hidden="true"></span>
+                Line
+              </button>
+            </div>
+          )}
 
           {!editTool && (
             <span className="tool-hint-pill">Tap a tool to edit • tap again to deselect</span>

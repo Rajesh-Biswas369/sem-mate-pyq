@@ -3047,3 +3047,100 @@ a {
     padding: 8px 12px;
   }
 }
+
+
+/* =========================================
+   PEN CURVE / STRAIGHT LINE MODE
+========================================= */
+.pen-mode-bubble {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 7px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(250, 204, 21, 0.22);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
+}
+
+.pen-mode-bubble button {
+  min-width: 64px;
+  min-height: 62px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.pen-mode-bubble button.active {
+  background: linear-gradient(135deg, #fff7c2, #facc15, #f59e0b);
+  color: #111827;
+  box-shadow: 0 0 16px rgba(250, 204, 21, 0.18);
+}
+
+.pen-mode-icon {
+  width: 34px;
+  height: 26px;
+  display: block;
+  position: relative;
+}
+
+.curve-icon::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 3px;
+  width: 30px;
+  height: 18px;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  transform: rotate(22deg);
+}
+
+.curve-icon::after {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 10px;
+  width: 19px;
+  height: 10px;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  transform: rotate(-28deg);
+}
+
+.line-icon::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 13px;
+  width: 28px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 999px;
+  transform: rotate(-42deg);
+  transform-origin: center;
+}
+
+@media (max-width: 768px) {
+  .pen-mode-bubble {
+    flex: 0 0 auto;
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .pen-mode-bubble button {
+    min-width: 58px;
+    min-height: 56px;
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+
+  .pen-mode-icon {
+    width: 30px;
+    height: 22px;
+  }
+}
