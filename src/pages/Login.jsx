@@ -26,14 +26,12 @@ function Login() {
 
       {/* Floating Glass Login Card */}
       <main className="login-card">
-        <div className="login-badge">JU EE PYQ SOLUTIONS</div>
+        <div className="login-badge">SEM-MATE</div>
 
-        <div className="login-logo">
-          <span>⚡</span>
-        </div>
+        <div className="login-logo" aria-hidden="true"></div>
 
         <div className="login-heading">
-          <h1>SEM-MATE</h1>
+          <h1>Sem-Mate</h1>
           <h2>Smart PYQ Solution Library</h2>
         </div>
 

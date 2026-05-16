@@ -62,7 +62,8 @@ function Home() {
 
       {/* Main Animated Header */}
       <header className="topbar">
-        <h1>JU EE PYQ Solutions</h1>
+        <div className="site-logo" aria-hidden="true"></div>
+        <h1>Sem-Mate</h1>
         <p>Master your engineering concepts with just-in-time solutions and comprehensive notes.</p>
       </header>
 
