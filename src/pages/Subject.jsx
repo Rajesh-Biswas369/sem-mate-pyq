@@ -105,6 +105,31 @@ function Subject() {
 
   const getPlan = (accessType) => accessPlans?.[accessType] || DEFAULT_ACCESS_PLANS[accessType];
 
+  const isStoredPaidAccessValid = (accessType) => {
+    const paidKey = makeKey("paid", accessType);
+    if (!paidKey || localStorage.getItem(paidKey) !== "true") return false;
+
+    const paymentKey = makeKey("payment", accessType);
+    const storedPayment = localStorage.getItem(paymentKey);
+    if (!storedPayment) return true;
+
+    try {
+      const paymentData = JSON.parse(storedPayment);
+      const savedCoupon = String(paymentData?.couponCode || "").trim().toUpperCase();
+      const currentCoupon = String(getPlan(accessType)?.coupon || "").trim().toUpperCase();
+
+      if (paymentData?.mode === "coupon" && savedCoupon && savedCoupon !== currentCoupon) {
+        localStorage.removeItem(paidKey);
+        localStorage.removeItem(paymentKey);
+        return false;
+      }
+    } catch {
+      return true;
+    }
+
+    return true;
+  };
+
   const getTrialStarted = (accessType) => {
     const key = makeKey("trial", accessType);
     return Boolean(key && localStorage.getItem(key));
@@ -136,10 +161,9 @@ function Subject() {
     const nextTrials = { total: 0, materials: 0, solutions: 0 };
 
     ACCESS_TYPES.forEach((accessType) => {
-      const paidKey = makeKey("paid", accessType);
       const trialKey = makeKey("trial", accessType);
 
-      nextPaid[accessType] = Boolean(paidKey && localStorage.getItem(paidKey) === "true");
+      nextPaid[accessType] = isStoredPaidAccessValid(accessType);
 
       const storedStart = Number(localStorage.getItem(trialKey));
       if (storedStart) {
@@ -185,7 +209,7 @@ function Subject() {
     // Without login, every PDF card stays locked.
     if (accessType === "pyq") return Boolean(user || isAdmin);
 
-    // TOTALFREE / total payment / total trial unlocks every paid section.
+    // Full Subject Access payment, promo, or trial unlocks every paid section.
     // So Materials and Solutions must show Access Active when total access is active.
     if (accessType === "materials" || accessType === "solutions") {
       return Boolean(hasDirectAccess("total") || hasDirectAccess(accessType));

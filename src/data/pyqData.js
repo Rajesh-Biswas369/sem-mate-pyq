@@ -3,7 +3,7 @@ const SEM4_ACCESS_PLANS = {
     label: "Full Subject Access",
     price: 10,
     oldPrice: 12,
-    coupon: "TOTALFREE",
+    coupon: "SMRB10",
   },
   materials: {
     label: "Materials Access",

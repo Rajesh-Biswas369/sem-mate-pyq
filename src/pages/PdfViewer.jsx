@@ -300,7 +300,27 @@ function PdfViewer() {
     if (isAdmin) return true;
 
     const paidKey = makeAccessKey("paid", user.email, subject?.name, accessType);
-    return Boolean(paidKey && localStorage.getItem(paidKey) === "true");
+    if (!paidKey || localStorage.getItem(paidKey) !== "true") return false;
+
+    const paymentKey = makeAccessKey("payment", user.email, subject?.name, accessType);
+    const storedPayment = localStorage.getItem(paymentKey);
+    if (!storedPayment) return true;
+
+    try {
+      const paymentData = JSON.parse(storedPayment);
+      const savedCoupon = String(paymentData?.couponCode || "").trim().toUpperCase();
+      const currentCoupon = String(subject?.accessPlans?.[accessType]?.coupon || "").trim().toUpperCase();
+
+      if (paymentData?.mode === "coupon" && savedCoupon && currentCoupon && savedCoupon !== currentCoupon) {
+        localStorage.removeItem(paidKey);
+        localStorage.removeItem(paymentKey);
+        return false;
+      }
+    } catch {
+      return true;
+    }
+
+    return true;
   };
 
   const hasTrialDirect = (accessType) => {
