@@ -804,13 +804,13 @@ const fieldTheory = {
   folders: [
     {
       folderName: "Materials",
-      icon: "ðŸ“š",
+      icon: "📚",
       type: "materials",
       premium: true,
       subFolders: [
         {
           folderName: "Part-I",
-          icon: "â… ",
+          icon: "Ⅰ",
           type: "materials",
           premium: true,
           files: [
@@ -867,7 +867,7 @@ const fieldTheory = {
         },
         {
           folderName: "Part-II",
-          icon: "â…¡",
+          icon: "Ⅱ",
           type: "materials",
           premium: true,
           files: [
@@ -961,7 +961,7 @@ const fieldTheory = {
     },
     {
       folderName: "PYQs",
-      icon: "ðŸ“",
+      icon: "📝",
       type: "pyq",
       premium: false,
       files: [
@@ -997,7 +997,7 @@ const fieldTheory = {
     },
     {
       folderName: "Solutions",
-      icon: "ðŸ’¡",
+      icon: "💡",
       type: "solutions",
       premium: true,
       files: [

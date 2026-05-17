@@ -2370,6 +2370,75 @@ a {
 }
 
 /* =========================================
+   PDF READING MODES
+========================================= */
+.pdf-reading-normal .drive-pdf-page canvas,
+.pdf-reading-normal .crystal-pdf-page canvas,
+.pdf-reading-normal .react-pdf__Page__canvas {
+  filter: none !important;
+}
+
+.drive-pdf-viewer.pdf-reading-eye-care {
+  background:
+    radial-gradient(circle at top, rgba(250, 204, 21, 0.055), transparent 28%),
+    linear-gradient(180deg, #070b12 0%, #101721 48%, #070b12 100%);
+}
+
+.pdf-reading-eye-care .drive-pdf-scroll-area {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(254, 240, 138, 0.05), transparent 34%),
+    transparent;
+}
+
+.pdf-reading-eye-care .drive-pdf-page,
+.pdf-reading-eye-care .crystal-pdf-page,
+.pdf-reading-eye-care .crystal-pdf-page .react-pdf__Page {
+  background: #f7ecd2 !important;
+}
+
+.pdf-reading-eye-care .drive-pdf-page canvas,
+.pdf-reading-eye-care .crystal-pdf-page canvas,
+.pdf-reading-eye-care .react-pdf__Page__canvas {
+  filter: sepia(22%) brightness(0.92) contrast(0.9) saturate(0.85) !important;
+}
+
+.drive-pdf-viewer.pdf-reading-dark {
+  background:
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.06), transparent 30%),
+    linear-gradient(180deg, #010409 0%, #050914 48%, #010409 100%);
+}
+
+.pdf-reading-dark .drive-pdf-scroll-area {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.055), transparent 32%),
+    transparent;
+}
+
+.pdf-reading-dark .drive-pdf-page,
+.pdf-reading-dark .crystal-pdf-page,
+.pdf-reading-dark .crystal-pdf-page .react-pdf__Page {
+  background: #111827 !important;
+}
+
+.pdf-reading-dark .drive-pdf-page canvas,
+.pdf-reading-dark .crystal-pdf-page canvas,
+.pdf-reading-dark .react-pdf__Page__canvas {
+  filter: invert(1) hue-rotate(180deg) brightness(0.88) contrast(0.92) !important;
+}
+
+.pdf-reading-eye-care .pdf-placeholder-content,
+.pdf-reading-eye-care .pdf-page-loading {
+  color: #7c5e10;
+  background: #f7ecd2;
+}
+
+.pdf-reading-dark .pdf-placeholder-content,
+.pdf-reading-dark .pdf-page-loading {
+  color: #dbeafe;
+  background: #111827;
+}
+
+/* =========================================
    PDF VIEWER VIEW / EDIT + PRIVATE ANNOTATIONS
 ========================================= */
 
@@ -2401,6 +2470,35 @@ a {
 .viewer-mode-toggle button:disabled {
   opacity: 0.48;
   cursor: not-allowed;
+}
+
+.reading-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.58);
+  border: 1px solid rgba(250, 204, 21, 0.18);
+  flex: 0 0 auto;
+}
+
+.reading-mode-toggle button {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: #cbd5e1;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.reading-mode-toggle button.active {
+  color: #111827;
+  background: linear-gradient(135deg, #fff7c2, #facc15, #f59e0b);
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.16);
 }
 
 .annotation-toolbar {
@@ -2999,8 +3097,23 @@ a {
     font-size: 12px;
   }
 
-  .pdf-nav-smart .zoom-controls {
+  .pdf-nav-smart .reading-mode-toggle {
     order: 4;
+    flex: 1 1 100%;
+    justify-content: center;
+    padding: 3px;
+    gap: 3px;
+  }
+
+  .pdf-nav-smart .reading-mode-toggle button {
+    flex: 1;
+    min-height: 32px;
+    padding: 7px 8px;
+    font-size: 12px;
+  }
+
+  .pdf-nav-smart .zoom-controls {
+    order: 5;
     flex: 1 1 100%;
     justify-content: center;
     gap: 5px;
@@ -3050,6 +3163,11 @@ a {
 
   .pdf-nav-smart .viewer-mode-toggle button {
     flex: 1;
+  }
+
+  .pdf-nav-smart .reading-mode-toggle button {
+    font-size: 11px;
+    padding: 7px 6px;
   }
 
   .annotation-toolbar {

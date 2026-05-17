@@ -47,6 +47,23 @@ const ANNOTATION_COLORS = [
   { name: "Purple", value: "#a855f7" },
 ];
 
+const PDF_READING_MODE_KEY = "semMatePdfReadingMode";
+const READING_MODES = [
+  { id: "normal", label: "Normal" },
+  { id: "eye-care", label: "Eye Care" },
+  { id: "dark", label: "Dark" },
+];
+
+function getInitialReadingMode() {
+  if (typeof window === "undefined") return "normal";
+  try {
+    const storedMode = window.localStorage.getItem(PDF_READING_MODE_KEY);
+    return READING_MODES.some((mode) => mode.id === storedMode) ? storedMode : "normal";
+  } catch {
+    return "normal";
+  }
+}
+
 function getInitialScale() {
   if (typeof window === "undefined") return DEFAULT_DESKTOP_SCALE;
   return window.innerWidth <= 768 ? DEFAULT_MOBILE_SCALE : DEFAULT_DESKTOP_SCALE;
@@ -237,6 +254,7 @@ function PdfViewer() {
   );
   const [showDriveScroll, setShowDriveScroll] = useState(false);
   const [hdMode, setHdMode] = useState(true);
+  const [readingMode, setReadingMode] = useState(getInitialReadingMode);
 
   const [viewerMode, setViewerMode] = useState("view");
   const [editTool, setEditTool] = useState("");
@@ -332,6 +350,14 @@ function PdfViewer() {
   useEffect(() => {
     annotationsRef.current = annotations;
   }, [annotations]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PDF_READING_MODE_KEY, readingMode);
+    } catch {
+      // Reading mode still works for the current PDF if browser storage is unavailable.
+    }
+  }, [readingMode]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
@@ -1326,7 +1352,7 @@ function PdfViewer() {
 
   return (
     <div
-      className="app electric-bg page-shell pdf-viewer-shell drive-pdf-viewer"
+      className={`app electric-bg page-shell pdf-viewer-shell drive-pdf-viewer pdf-reading-${readingMode}`}
       onContextMenu={(event) => event.preventDefault()}
     >
       <div className="topbar pdf-nav pdf-nav-smart">
@@ -1358,6 +1384,20 @@ function PdfViewer() {
           >
             Edit
           </button>
+        </div>
+
+        <div className="reading-mode-toggle" aria-label="PDF reading mode">
+          {READING_MODES.map((mode) => (
+            <button
+              key={mode.id}
+              type="button"
+              className={readingMode === mode.id ? "active" : ""}
+              onClick={() => setReadingMode(mode.id)}
+              title={`${mode.label} reading mode`}
+            >
+              {mode.label}
+            </button>
+          ))}
         </div>
 
         <div className="zoom-controls">
