@@ -5,7 +5,7 @@ import { auth } from "../firebase";
 import Footer from "../components/Footer";
 
 const ADMIN_EMAILS = ["maxjoy146@gmail.com", "kk9327721@gmail.com","tamajitray.5@gmail.com"];
-const TRIAL_SECONDS = 120;
+const TRIAL_SECONDS = 300;
 const ACCESS_TYPES = ["total", "materials", "solutions"];
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "https://sem-mate-pyq.onrender.com").replace(/\/$/, "");
 
@@ -14,7 +14,7 @@ const DEFAULT_ACCESS_PLANS = {
     label: "Full Subject Access",
     price: 10,
     oldPrice: 12,
-    coupon: "TOTALFREE",
+    coupon: "SMRB10",
   },
   materials: {
     label: "Materials Access",
