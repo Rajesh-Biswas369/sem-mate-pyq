@@ -170,7 +170,7 @@ function Subject() {
   const formatTime = (seconds) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(5, "0")}`;
   };
 
   const hasDirectAccess = (accessType) => {
@@ -212,13 +212,13 @@ function Subject() {
     if (!trialKey) return;
 
     if (getTrialStarted(accessType)) {
-      setMessage(accessType, "Your 2-minute trial has already been used for this section.");
+      setMessage(accessType, "Your 5-minute trial has already been used for this section.");
       return;
     }
 
     localStorage.setItem(trialKey, String(Date.now()));
     setTrialTimes((previous) => ({ ...previous, [accessType]: TRIAL_SECONDS }));
-    setMessage(accessType, `${getPlan(accessType).label} trial started for 2 minutes.`);
+    setMessage(accessType, `${getPlan(accessType).label} trial started for 5 minutes.`);
   };
 
   const markPaidAfterSuccessfulPayment = (accessType, paymentData = {}) => {
@@ -421,7 +421,7 @@ function Subject() {
 
         <div className="premium-actions">
           <div className="timer-card">
-            <span>⏳ 2-minute trial</span>
+            <span>⏳ 5-minute trial</span>
             <strong>{trialTimes[accessType] > 0 ? formatTime(trialTimes[accessType]) : "00:00"}</strong>
             <small>
               {trialTimes[accessType] > 0
@@ -446,7 +446,7 @@ function Subject() {
             <>
               {!trialStarted && (
                 <button className="pay-btn trial-btn" onClick={() => startTrial(accessType)}>
-                  Start 2-Min Trial
+                  Start 5-Min Trial
                 </button>
               )}
 
