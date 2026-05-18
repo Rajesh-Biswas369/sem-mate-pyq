@@ -23,6 +23,7 @@ import "react-pdf/dist/Page/TextLayer.css";
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 const ADMIN_EMAILS = ["maxjoy146@gmail.com", "kk9327721@gmail.com", "tamajitray.5@gmail.com"];
+const MANUAL_PAID_EMAILS = ["swapnenduop@gmail.com"];
 const TRIAL_SECONDS = 120;
 const DESKTOP_PAGE_RENDER_LIMIT = 18;
 const THUMB_HEIGHT = 48;
@@ -288,6 +289,9 @@ function PdfViewer() {
   const pagesAroundCurrent = isMobile ? 1 : 3;
 
   const isAdmin = Boolean(user && ADMIN_EMAILS.includes(user.email));
+  const hasManualPaidAccess = Boolean(
+    user?.email && MANUAL_PAID_EMAILS.includes(user.email.toLowerCase())
+  );
 
   const annotationCollectionRef = useMemo(() => {
     if (!user?.uid || !pdfId || !db) return null;
@@ -298,6 +302,7 @@ function PdfViewer() {
     if (!subjectRequiresPayment) return false;
     if (!user) return false;
     if (isAdmin) return true;
+    if (hasManualPaidAccess) return true;
 
     const paidKey = makeAccessKey("paid", user.email, subject?.name, accessType);
     if (!paidKey || localStorage.getItem(paidKey) !== "true") return false;

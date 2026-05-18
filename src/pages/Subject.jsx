@@ -5,6 +5,7 @@ import { auth } from "../firebase";
 import Footer from "../components/Footer";
 
 const ADMIN_EMAILS = ["maxjoy146@gmail.com", "kk9327721@gmail.com","tamajitray.5@gmail.com"];
+const MANUAL_PAID_EMAILS = ["swapnenduop@gmail.com"];
 const TRIAL_SECONDS = 300;
 const ACCESS_TYPES = ["total", "materials", "solutions"];
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "https://sem-mate-pyq.onrender.com").replace(/\/$/, "");
@@ -102,6 +103,9 @@ function Subject() {
   };
 
   const isAdmin = Boolean(user && ADMIN_EMAILS.includes(user.email));
+  const hasManualPaidAccess = Boolean(
+    user?.email && MANUAL_PAID_EMAILS.includes(user.email.toLowerCase())
+  );
 
   const getPlan = (accessType) => accessPlans?.[accessType] || DEFAULT_ACCESS_PLANS[accessType];
 
@@ -199,7 +203,7 @@ function Subject() {
 
   const hasDirectAccess = (accessType) => {
     if (!supportsSectionAccess) return true;
-    return Boolean(isAdmin || paidAccess[accessType] || trialTimes[accessType] > 0);
+    return Boolean(isAdmin || hasManualPaidAccess || paidAccess[accessType] || trialTimes[accessType] > 0);
   };
 
   const hasSectionAccess = (accessType) => {
