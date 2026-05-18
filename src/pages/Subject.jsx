@@ -120,7 +120,8 @@ function Subject() {
     try {
       const paymentData = JSON.parse(storedPayment);
       const savedCoupon = String(paymentData?.couponCode || "").trim().toUpperCase();
-      const currentCoupon = String(getPlan(accessType)?.coupon || "").trim().toUpperCase();
+      const planAccessType = paymentData?.unlockedBy || accessType;
+      const currentCoupon = String(getPlan(planAccessType)?.coupon || "").trim().toUpperCase();
 
       if (paymentData?.mode === "coupon" && savedCoupon && savedCoupon !== currentCoupon) {
         localStorage.removeItem(paidKey);
@@ -175,6 +176,11 @@ function Subject() {
         nextTrials[accessType] = Math.max(TRIAL_SECONDS - elapsed, 0);
       }
     });
+
+    if (nextPaid.total) {
+      nextPaid.materials = true;
+      nextPaid.solutions = true;
+    }
 
     setPaidAccess(nextPaid);
     setTrialTimes(nextTrials);
@@ -252,22 +258,34 @@ function Subject() {
   const markPaidAfterSuccessfulPayment = (accessType, paymentData = {}) => {
     if (!user || !subject) return;
 
-    const paidKey = makeKey("paid", accessType);
-    const paymentKey = makeKey("payment", accessType);
+    const unlockedAccessTypes =
+      accessType === "total" ? ["total", "materials", "solutions"] : [accessType];
 
-    localStorage.setItem(paidKey, "true");
-    localStorage.setItem(
-      paymentKey,
-      JSON.stringify({
-        ...paymentData,
-        accessType,
-        subjectName: subject?.name,
-        email: user.email,
-        paidAt: new Date().toISOString(),
-      })
-    );
+    unlockedAccessTypes.forEach((unlockedAccessType) => {
+      const paidKey = makeKey("paid", unlockedAccessType);
+      const paymentKey = makeKey("payment", unlockedAccessType);
 
-    setPaidAccess((previous) => ({ ...previous, [accessType]: true }));
+      localStorage.setItem(paidKey, "true");
+      localStorage.setItem(
+        paymentKey,
+        JSON.stringify({
+          ...paymentData,
+          accessType: unlockedAccessType,
+          unlockedBy: accessType,
+          subjectName: subject?.name,
+          email: user.email,
+          paidAt: new Date().toISOString(),
+        })
+      );
+    });
+
+    setPaidAccess((previous) => ({
+      ...previous,
+      ...unlockedAccessTypes.reduce(
+        (nextAccess, unlockedAccessType) => ({ ...nextAccess, [unlockedAccessType]: true }),
+        {}
+      ),
+    }));
     setMessage(accessType, `${getPlan(accessType).label} unlocked successfully.`);
   };
 

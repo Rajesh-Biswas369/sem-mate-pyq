@@ -314,7 +314,8 @@ function PdfViewer() {
     try {
       const paymentData = JSON.parse(storedPayment);
       const savedCoupon = String(paymentData?.couponCode || "").trim().toUpperCase();
-      const currentCoupon = String(subject?.accessPlans?.[accessType]?.coupon || "").trim().toUpperCase();
+      const planAccessType = paymentData?.unlockedBy || accessType;
+      const currentCoupon = String(subject?.accessPlans?.[planAccessType]?.coupon || "").trim().toUpperCase();
 
       if (paymentData?.mode === "coupon" && savedCoupon && currentCoupon && savedCoupon !== currentCoupon) {
         localStorage.removeItem(paidKey);
