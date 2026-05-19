@@ -4,7 +4,7 @@ import { pyqData } from "../data/pyqData";
 import { auth } from "../firebase";
 import Footer from "../components/Footer";
 
-const ADMIN_EMAILS = ["maxjoy146@gmail.com", "kk9327721@gmail.com","tamajitray.5@gmail.com"];
+const ADMIN_EMAILS = ["maxjoy146@gmail.com", "swapnenduop@gmail.com","tamajitray.5@gmail.com"];
 const MANUAL_PAID_EMAILS = ["swapnenduop@gmail.com"];
 const TRIAL_SECONDS = 300;
 const ACCESS_TYPES = ["total", "materials", "solutions"];
