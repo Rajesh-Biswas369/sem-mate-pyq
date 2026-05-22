@@ -261,7 +261,33 @@ function Subject() {
     setPaymentLoading((previous) => ({ ...previous, [accessType]: value }));
   };
 
-  const startTrial = (accessType) => {
+  const requestAccessGrant = async (accessType, payload) => {
+    if (!user) throw new Error("Please login first.");
+
+    const idToken = await user.getIdToken();
+    const response = await fetch(`${API_BASE_URL}/api/access-grant`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        subjectName: subject.name,
+        accessType,
+        email: user.email,
+        ...payload,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || "Could not create secure access.");
+    }
+
+    return data.accessGrant;
+  };
+
+  const startTrial = async (accessType) => {
     if (!user || !subject) {
       setMessage(accessType, "Please login first to start the trial.");
       return;
@@ -275,9 +301,21 @@ function Subject() {
       return;
     }
 
-    localStorage.setItem(trialKey, String(Date.now()));
-    setTrialTimes((previous) => ({ ...previous, [accessType]: TRIAL_SECONDS }));
-    setMessage(accessType, `${getPlan(accessType).label} trial started for 5 minutes.`);
+    try {
+      setLoading(accessType, true);
+      setMessage(accessType, "Starting secure trial...");
+      const accessGrant = await requestAccessGrant(accessType, { mode: "trial" });
+      const grantKey = makeKey("accessGrant", accessType);
+
+      localStorage.setItem(trialKey, String(Date.now()));
+      if (grantKey && accessGrant) localStorage.setItem(grantKey, accessGrant);
+      setTrialTimes((previous) => ({ ...previous, [accessType]: TRIAL_SECONDS }));
+      setMessage(accessType, `${getPlan(accessType).label} trial started for 5 minutes.`);
+    } catch (error) {
+      setMessage(accessType, error.message || "Could not start secure trial.");
+    } finally {
+      setLoading(accessType, false);
+    }
   };
 
   const markPaidAfterSuccessfulPayment = (accessType, paymentData = {}) => {
@@ -289,8 +327,12 @@ function Subject() {
     unlockedAccessTypes.forEach((unlockedAccessType) => {
       const paidKey = makeKey("paid", unlockedAccessType);
       const paymentKey = makeKey("payment", unlockedAccessType);
+      const grantKey = makeKey("accessGrant", unlockedAccessType);
 
       localStorage.setItem(paidKey, "true");
+      if (grantKey && paymentData.accessGrant) {
+        localStorage.setItem(grantKey, paymentData.accessGrant);
+      }
       localStorage.setItem(
         paymentKey,
         JSON.stringify({
@@ -314,7 +356,7 @@ function Subject() {
     setMessage(accessType, `${getPlan(accessType).label} unlocked successfully.`);
   };
 
-  const handleApplyCoupon = (accessType) => {
+  const handleApplyCoupon = async (accessType) => {
     if (!user) {
       setMessage(accessType, "Please login first to apply a promo code.");
       return;
@@ -324,7 +366,24 @@ function Subject() {
     const requiredCoupon = getPlan(accessType).coupon;
 
     if (enteredCoupon === requiredCoupon) {
-      markPaidAfterSuccessfulPayment(accessType, { couponCode: requiredCoupon, mode: "coupon" });
+      try {
+        setLoading(accessType, true);
+        setMessage(accessType, "Verifying secure promo access...");
+        const accessGrant = await requestAccessGrant(accessType, {
+          mode: "coupon",
+          couponCode: requiredCoupon,
+        });
+
+        markPaidAfterSuccessfulPayment(accessType, {
+          couponCode: requiredCoupon,
+          mode: "coupon",
+          accessGrant,
+        });
+      } catch (error) {
+        setMessage(accessType, error.message || "Could not apply promo code securely.");
+      } finally {
+        setLoading(accessType, false);
+      }
       return;
     }
 
@@ -406,6 +465,7 @@ function Subject() {
                 subjectName: subject.name,
                 accessType,
                 email: user.email,
+                uid: user.uid,
               }),
             });
 
@@ -419,6 +479,7 @@ function Subject() {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               mode: "razorpay",
+              accessGrant: verifyData.accessGrant,
             });
           } catch (error) {
             setMessage(accessType, error.message || "Payment verification failed.");

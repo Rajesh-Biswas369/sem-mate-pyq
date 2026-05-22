@@ -24,7 +24,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.vers
 
 const ADMIN_EMAILS = ["maxjoy146@gmail.com", "kk9327721@gmail.com", "tamajitray.5@gmail.com"];
 const MANUAL_PAID_EMAILS = ["swapnenduop@gmail.com"];
-const TRIAL_SECONDS = 120;
+const TRIAL_SECONDS = 300;
 const DESKTOP_PAGE_RENDER_LIMIT = 18;
 const THUMB_HEIGHT = 48;
 const DEFAULT_DESKTOP_SCALE = 1.18;
@@ -38,6 +38,7 @@ const MAX_MOBILE_DPR = 3.2;
 const MIN_PEN_SIZE = 0.18;
 const MAX_PEN_SIZE = 1.6;
 const DEFAULT_PEN_SIZE = 0.45;
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "https://sem-mate-pyq.onrender.com").replace(/\/$/, "");
 
 const ANNOTATION_COLORS = [
   { name: "Yellow", value: "#facc15" },
@@ -175,6 +176,13 @@ function makeAccessKey(prefix, email, subjectName, accessType = "total") {
   return `${prefix}_${cleanKeyPart(email)}_${cleanKeyPart(subjectName)}_${accessType}`;
 }
 
+function getStoredAccessGrant(email, subjectName, accessType) {
+  const directGrantKey = makeAccessKey("accessGrant", email, subjectName, accessType);
+  const totalGrantKey = makeAccessKey("accessGrant", email, subjectName, "total");
+
+  return localStorage.getItem(directGrantKey) || localStorage.getItem(totalGrantKey) || "";
+}
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
@@ -256,6 +264,8 @@ function PdfViewer() {
   const [showDriveScroll, setShowDriveScroll] = useState(false);
   const [hdMode, setHdMode] = useState(true);
   const [readingMode, setReadingMode] = useState(getInitialReadingMode);
+  const [protectedPdfUrl, setProtectedPdfUrl] = useState("");
+  const [protectedPdfError, setProtectedPdfError] = useState("");
 
   const [viewerMode, setViewerMode] = useState("view");
   const [editTool, setEditTool] = useState("");
@@ -366,6 +376,7 @@ function PdfViewer() {
         hasPaidDirect("total") ||
         (currentAccessType !== "pyq" && hasPaidDirect(currentAccessType)))
   );
+  const documentFile = protectedPdfUrl || (!subjectRequiresPayment && !user ? fileUrl : "");
 
   const eraserRadius = useMemo(() => {
     // Uses the same range as the pen-size slider, but a slightly wider
@@ -437,6 +448,69 @@ function PdfViewer() {
     const container = scrollContainerRef.current;
     if (container) container.scrollTop = 0;
   }, [fileUrl]);
+
+  useEffect(() => {
+    setProtectedPdfUrl((previousUrl) => {
+      if (previousUrl) URL.revokeObjectURL(previousUrl);
+      return "";
+    });
+    setProtectedPdfError("");
+  }, [fileUrl, user?.uid]);
+
+  useEffect(() => {
+    if (!authReady || !hasAccess || !user || !fileUrl) return undefined;
+
+    let cancelled = false;
+    let objectUrl = "";
+
+    const loadProtectedPdf = async () => {
+      try {
+        setProtectedPdfError("");
+        const idToken = await user.getIdToken();
+        const accessGrant = getStoredAccessGrant(user.email, subject?.name, currentAccessType);
+
+        const response = await fetch(`${API_BASE_URL}/api/protected-pdf`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            fileUrl,
+            subjectName: subject?.name || "",
+            accessType: currentAccessType,
+            accessGrant,
+          }),
+        });
+
+        if (!response.ok) {
+          let message = "Could not load protected PDF.";
+          try {
+            const errorData = await response.json();
+            message = errorData.message || message;
+          } catch {
+            // The response may be an HTML error from the hosting provider.
+          }
+          throw new Error(message);
+        }
+
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (!cancelled) setProtectedPdfUrl(objectUrl);
+      } catch (error) {
+        if (!cancelled) {
+          setProtectedPdfError(error.message || "Could not load protected PDF.");
+        }
+      }
+    };
+
+    loadProtectedPdf();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [authReady, hasAccess, user, fileUrl, subject?.name, currentAccessType]);
 
   useEffect(() => {
     return () => {
@@ -1360,7 +1434,7 @@ function PdfViewer() {
                 : "Please login first. Trial, promo, payment, and document viewing are locked without login."
               : currentAccessType === "pyq"
               ? "Please login again to open this free PYQ document."
-              : "Payment, promo, or an active 2-minute trial is required to view this document."}
+              : "Payment, promo, or an active 5-minute trial is required to view this document."}
           </p>
           {!user ? (
             <Link to="/login" className="open-btn">
@@ -1570,8 +1644,16 @@ function PdfViewer() {
         ref={scrollContainerRef}
         onScroll={handleScroll}
       >
+        {protectedPdfError ? (
+          <div className="empty-box">
+            <h2>Protected PDF blocked</h2>
+            <p>{protectedPdfError}</p>
+          </div>
+        ) : !documentFile ? (
+          <p className="pdf-status">Loading protected PDF...</p>
+        ) : (
         <Document
-          file={fileUrl}
+          file={documentFile}
           onLoadSuccess={({ numPages: loadedPages }) => {
             setNumPages(loadedPages);
             pageRefs.current = new Array(loadedPages);
@@ -1581,7 +1663,7 @@ function PdfViewer() {
           error={
             <div className="empty-box">
               <h2>Failed to load PDF</h2>
-              <p>Check that this file exists inside public{fileUrl}</p>
+              <p>The protected PDF stream could not be opened.</p>
             </div>
           }
         >
@@ -1624,6 +1706,7 @@ function PdfViewer() {
               );
             })}
         </Document>
+        )}
       </main>
 
       <div className={`drive-scrollbar-track ${showDriveScroll ? "visible" : ""}`}>

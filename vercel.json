@@ -1,0 +1,15 @@
+{
+  "routes": [
+    {
+      "src": "/Sem4/(.*)\\.pdf",
+      "status": 403
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
