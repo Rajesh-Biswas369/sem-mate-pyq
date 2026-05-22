@@ -88,13 +88,13 @@ const electricalInstrumentation = {
   folders: [
     {
       folderName: "Materials",
-      icon: "📚",
+      icon: "\uD83D\uDCDA",
       type: "materials",
       premium: true,
       subFolders: [
         {
           folderName: "Part-I",
-          icon: "Ⅰ",
+          icon: "\u2160",
           type: "materials",
           premium: true,
           files: [
@@ -151,7 +151,7 @@ const electricalInstrumentation = {
         },
         {
           folderName: "Part-II",
-          icon: "Ⅱ",
+          icon: "\u2161",
           type: "materials",
           premium: true,
           files: [
@@ -210,7 +210,7 @@ const electricalInstrumentation = {
     },
     {
       folderName: "PYQs",
-      icon: "📝",
+      icon: "\uD83D\uDCDD",
       type: "pyq",
       premium: false,
       files: [
@@ -246,7 +246,7 @@ const electricalInstrumentation = {
     },
     {
       folderName: "Solutions",
-      icon: "💡",
+      icon: "\uD83D\uDCA1",
       type: "solutions",
       premium: true,
       files: [

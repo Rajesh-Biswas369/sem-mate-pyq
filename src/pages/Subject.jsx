@@ -74,6 +74,21 @@ function getFolderAccessType(folder) {
   return "pyq";
 }
 
+function getDisplayIcon(item) {
+  if (!item) return "";
+
+  if (item.type === "materials") {
+    if (item.folderName === "Part-I") return "\u2160";
+    if (item.folderName === "Part-II") return "\u2161";
+    return "\uD83D\uDCDA";
+  }
+
+  if (item.type === "solutions") return "\uD83D\uDCA1";
+  if (item.type === "pyq") return "\uD83D\uDCDD";
+
+  return item.icon || "";
+}
+
 function Subject() {
   const { semesterName, subjectName } = useParams();
   const navigate = useNavigate();
@@ -592,7 +607,7 @@ function Subject() {
                 className="folder-card"
                 onClick={() => handleMainFolderOpen(folder)}
               >
-                <span className="folder-icon">{folder.icon}</span>
+                <span className="folder-icon">{getDisplayIcon(folder)}</span>
                 <div>
                   <h2>{folder.folderName}</h2>
                   <p>{countFiles(folder)} files available</p>
@@ -645,7 +660,7 @@ function Subject() {
           </button>
 
           <h2 className="section-title">
-            {selectedFolder.icon} {selectedFolder.folderName}
+            {getDisplayIcon(selectedFolder)} {selectedFolder.folderName}
           </h2>
 
           <div className="folder-grid subfolder-grid">
@@ -656,7 +671,7 @@ function Subject() {
                 className="folder-card"
                 onClick={() => handleSubFolderOpen(subFolder)}
               >
-                <span className="folder-icon">{subFolder.icon}</span>
+                <span className="folder-icon">{getDisplayIcon(subFolder)}</span>
                 <div>
                   <h2>{subFolder.folderName}</h2>
                   <p>{countFiles(subFolder)} files available</p>
@@ -675,7 +690,7 @@ function Subject() {
           </button>
 
           <h2 className="section-title">
-            {currentFileFolder.icon} {currentFileFolder.folderName}
+            {getDisplayIcon(currentFileFolder)} {currentFileFolder.folderName}
           </h2>
 
           {currentFileFolder.files.length === 0 ? (
