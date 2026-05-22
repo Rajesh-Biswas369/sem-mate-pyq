@@ -321,13 +321,13 @@ const electricalMachines = {
   folders: [
     {
       folderName: "Materials",
-      icon: "ðŸ“š",
+      icon: "📚",
       type: "materials",
       premium: true,
       subFolders: [
         {
           folderName: "Part-I",
-          icon: "â… ",
+          icon: "Ⅰ",
           type: "materials",
           premium: true,
           files: [
@@ -391,7 +391,7 @@ const electricalMachines = {
         },
         {
           folderName: "Part-II",
-          icon: "â…¡",
+          icon: "Ⅱ",
           type: "materials",
           premium: true,
           files: [
@@ -457,7 +457,7 @@ const electricalMachines = {
     },
     {
       folderName: "PYQs",
-      icon: "ðŸ“",
+      icon: "📝",
       type: "pyq",
       premium: false,
       files: [
@@ -493,7 +493,7 @@ const electricalMachines = {
     },
     {
       folderName: "Solutions",
-      icon: "ðŸ’¡",
+      icon: "💡",
       type: "solutions",
       premium: true,
       files: [
