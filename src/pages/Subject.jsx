@@ -29,6 +29,8 @@ const DEFAULT_ACCESS_PLANS = {
   },
 };
 
+const ELECTRICAL_MACHINES_COUPON = "ENGG50";
+
 function countFiles(folderOrSubject) {
   const directFiles = folderOrSubject?.files?.length || 0;
   const nestedFiles =
@@ -107,7 +109,15 @@ function Subject() {
     user?.email && MANUAL_PAID_EMAILS.includes(user.email.toLowerCase())
   );
 
-  const getPlan = (accessType) => accessPlans?.[accessType] || DEFAULT_ACCESS_PLANS[accessType];
+  const getPlan = (accessType) => {
+    const plan = accessPlans?.[accessType] || DEFAULT_ACCESS_PLANS[accessType];
+
+    if (subject?.name === "Electrical Machines-II") {
+      return { ...plan, coupon: ELECTRICAL_MACHINES_COUPON };
+    }
+
+    return plan;
+  };
 
   const isStoredPaidAccessValid = (accessType) => {
     const paidKey = makeKey("paid", accessType);

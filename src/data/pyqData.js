@@ -17,6 +17,21 @@ const SEM4_ACCESS_PLANS = {
   },
 };
 
+const ELECTRICAL_MACHINES_ACCESS_PLANS = {
+  total: {
+    ...SEM4_ACCESS_PLANS.total,
+    coupon: "ENGG50",
+  },
+  materials: {
+    ...SEM4_ACCESS_PLANS.materials,
+    coupon: "ENGG50",
+  },
+  solutions: {
+    ...SEM4_ACCESS_PLANS.solutions,
+    coupon: "ENGG50",
+  },
+};
+
 function emptySem4Subject(name, code, folderSlug) {
   return {
     name,
@@ -290,6 +305,253 @@ const electricalInstrumentation = {
           topic: "Solution Part-II",
           premium: true,
           url: "/Sem4/Electrical-Instrumentation/Solutions/instru-soln-2025-Part-II.pdf",
+        },
+      ],
+    },
+  ],
+};
+
+const electricalMachines = {
+  ...emptySem4Subject(
+    "Electrical Machines-II",
+    "EE/PC/B/T/222",
+    "Electrical Machines"
+  ),
+  accessPlans: ELECTRICAL_MACHINES_ACCESS_PLANS,
+  folders: [
+    {
+      folderName: "Materials",
+      icon: "ðŸ“š",
+      type: "materials",
+      premium: true,
+      subFolders: [
+        {
+          folderName: "Part-I",
+          icon: "â… ",
+          type: "materials",
+          premium: true,
+          files: [
+            {
+              title: "Electrical Machines Part-I Phase 0",
+              year: "Material",
+              topic: "Part-I / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-I/phase-0.pdf",
+            },
+            {
+              title: "Electrical Machines Part-I Phase 1",
+              year: "Material",
+              topic: "Part-I / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-I/phase-1.pdf",
+            },
+            {
+              title: "Electrical Machines Part-I Phase 2",
+              year: "Material",
+              topic: "Part-I / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-I/phase-2.pdf",
+            },
+            {
+              title: "Electrical Machines Part-I Phase 3",
+              year: "Material",
+              topic: "Part-I / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-I/phase-3.pdf",
+            },
+            {
+              title: "Electrical Machines Part-I Phase 4",
+              year: "Material",
+              topic: "Part-I / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-I/phase-4.pdf",
+            },
+            {
+              title: "Electrical Machines Part-I Phase 5",
+              year: "Material",
+              topic: "Part-I / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-I/phase-5.pdf",
+            },
+            {
+              title: "Electrical Machines Part-I Phase 6",
+              year: "Material",
+              topic: "Part-I / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-I/phase-6.pdf",
+            },
+            {
+              title: "Electrical Machines Part-I Roadmap",
+              year: "Material",
+              topic: "Part-I / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-I/roadmap.pdf",
+            },
+          ],
+        },
+        {
+          folderName: "Part-II",
+          icon: "â…¡",
+          type: "materials",
+          premium: true,
+          files: [
+            {
+              title: "Electrical Machines Part-II Phase 0",
+              year: "Material",
+              topic: "Part-II / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-II/phase-0.pdf",
+            },
+            {
+              title: "Electrical Machines Part-II Phase 1",
+              year: "Material",
+              topic: "Part-II / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-II/phase-1.pdf",
+            },
+            {
+              title: "Electrical Machines Part-II Phase 2",
+              year: "Material",
+              topic: "Part-II / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-II/Phase-2.pdf",
+            },
+            {
+              title: "Electrical Machines Part-II Phase 3",
+              year: "Material",
+              topic: "Part-II / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-II/Phase-3.pdf",
+            },
+            {
+              title: "Electrical Machines Part-II Phase 4",
+              year: "Material",
+              topic: "Part-II / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-II/Phase-4.pdf",
+            },
+            {
+              title: "Electrical Machines Part-II Phase 5",
+              year: "Material",
+              topic: "Part-II / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-II/Phase-5.pdf",
+            },
+            {
+              title: "Electrical Machines Part-II Phase 6",
+              year: "Material",
+              topic: "Part-II / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-II/Phase-6.pdf",
+            },
+            {
+              title: "Electrical Machines Part-II Roadmap",
+              year: "Material",
+              topic: "Part-II / Electrical Machines",
+              premium: true,
+              url: "/Sem4/Electrical Machines/Materials/Part-II/roadmap.pdf",
+            },
+          ],
+        },
+      ],
+    },
+    {
+      folderName: "PYQs",
+      icon: "ðŸ“",
+      type: "pyq",
+      premium: false,
+      files: [
+        {
+          title: "Electrical Machines 2022 Question Paper",
+          year: "2022",
+          topic: "PYQ",
+          premium: true,
+          url: "/Sem4/Electrical Machines/PYQs/22-Electrical Machines II.pdf",
+        },
+        {
+          title: "Electrical Machines 2023 Question Paper",
+          year: "2023",
+          topic: "PYQ",
+          premium: true,
+          url: "/Sem4/Electrical Machines/PYQs/23-Electrical Machines II.pdf",
+        },
+        {
+          title: "Electrical Machines 2024 Question Paper",
+          year: "2024",
+          topic: "PYQ",
+          premium: true,
+          url: "/Sem4/Electrical Machines/PYQs/24-Electrical Machines II.pdf",
+        },
+        {
+          title: "Electrical Machines 2025 Question Paper",
+          year: "2025",
+          topic: "PYQ",
+          premium: true,
+          url: "/Sem4/Electrical Machines/PYQs/25-Electrical Machines II.pdf",
+        },
+      ],
+    },
+    {
+      folderName: "Solutions",
+      icon: "ðŸ’¡",
+      type: "solutions",
+      premium: true,
+      files: [
+        {
+          title: "Electrical Machines Solution 2022 Part-I",
+          year: "2022",
+          topic: "Solution Part-I",
+          premium: true,
+          url: "/Sem4/Electrical Machines/Solutions/EMII-2022-PART-I.pdf",
+        },
+        {
+          title: "Electrical Machines Solution 2022 Part-II",
+          year: "2022",
+          topic: "Solution Part-II",
+          premium: true,
+          url: "/Sem4/Electrical Machines/Solutions/EMII-2022-PART-II.pdf",
+        },
+        {
+          title: "Electrical Machines Solution 2023 Part-I",
+          year: "2023",
+          topic: "Solution Part-I",
+          premium: true,
+          url: "/Sem4/Electrical Machines/Solutions/EMII-2023-PART-I.pdf",
+        },
+        {
+          title: "Electrical Machines Solution 2023 Part-II",
+          year: "2023",
+          topic: "Solution Part-II",
+          premium: true,
+          url: "/Sem4/Electrical Machines/Solutions/EMII-2023-PART-II.pdf",
+        },
+        {
+          title: "Electrical Machines Solution 2024 Part-I",
+          year: "2024",
+          topic: "Solution Part-I",
+          premium: true,
+          url: "/Sem4/Electrical Machines/Solutions/EMII-2024-PART-I.pdf",
+        },
+        {
+          title: "Electrical Machines Solution 2024 Part-II",
+          year: "2024",
+          topic: "Solution Part-II",
+          premium: true,
+          url: "/Sem4/Electrical Machines/Solutions/EMII-2024-PART-II.pdf",
+        },
+        {
+          title: "Electrical Machines Solution 2025 Part-I",
+          year: "2025",
+          topic: "Solution Part-I",
+          premium: true,
+          url: "/Sem4/Electrical Machines/Solutions/EMII-2025-PART-I.pdf",
+        },
+        {
+          title: "Electrical Machines Solution 2025 Part-II",
+          year: "2025",
+          topic: "Solution Part-II",
+          premium: true,
+          url: "/Sem4/Electrical Machines/Solutions/EMII-2025-PART-II.pdf",
         },
       ],
     },
@@ -1108,7 +1370,7 @@ export const pyqData = [
     semester: "Semester 4",
     subjects: [
       electricalInstrumentation,
-      emptySem4Subject("Electrical Machines-II", "EE/PC/B/T/222", "Electrical-Machines-II"),
+      electricalMachines,
       powerSupplySystems,
       emptySem4Subject("Digital Signal Processing", "EE/PC/B/T/224", "Digital-Signal-Processing"),
       sequentialSystems,
