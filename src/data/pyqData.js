@@ -489,6 +489,13 @@ const electricalMachines = {
           premium: true,
           url: "/Sem4/Electrical Machines/PYQs/25-Electrical Machines II.pdf",
         },
+        {
+          title: "Some Problemd on Induction Motor",
+          year: "Extra",
+          topic: "PYQ",
+          premium: true,
+          url: "/Sem4/Electrical Machines/PYQs/Some Problemd on Induction Motor.pdf",
+        },
       ],
     },
     {
@@ -552,6 +559,13 @@ const electricalMachines = {
           topic: "Solution Part-II",
           premium: true,
           url: "/Sem4/Electrical Machines/Solutions/EMII-2025-PART-II.pdf",
+        },
+        {
+          title: "Some Problemd on Induction Motor Solution",
+          year: "Extra",
+          topic: "Solution",
+          premium: true,
+          url: "/Sem4/Electrical Machines/Solutions/Some Problemd on Induction Motor Solution.pdf",
         },
       ],
     },
