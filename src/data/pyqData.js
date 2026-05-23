@@ -544,7 +544,7 @@ const electricalMachines = {
           year: "2024",
           topic: "Solution Part-II",
           premium: true,
-          url: "/Sem4/Electrical Machines/Solutions/EMII-2024-PART-II.pdf",
+          url: "/Sem4/Electrical Machines/Solutions/EMII-2024-PART-II-corr.pdf",
         },
         {
           title: "Electrical Machines Solution 2025 Part-I",
