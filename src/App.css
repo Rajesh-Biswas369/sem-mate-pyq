@@ -3290,9 +3290,29 @@ a {
   scroll-padding: 18px;
 }
 
+.drive-pdf-scroll-area {
+  overflow: auto !important;
+  overscroll-behavior: contain !important;
+  scroll-behavior: auto !important;
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+.drive-pdf-scroll-area.is-pannable {
+  cursor: grab;
+}
+
+.drive-pdf-scroll-area.is-pannable:active {
+  cursor: grabbing;
+}
+
+.drive-pdf-scroll-area.is-annotating {
+  cursor: crosshair;
+}
+
 .drive-pdf-scroll-area .react-pdf__Document {
   align-items: center;
   padding-inline: 18px;
+  max-width: none !important;
 }
 
 .drive-pdf-page {
@@ -3426,8 +3446,8 @@ a {
     justify-content: flex-start !important;
     overscroll-behavior: contain !important;
     -webkit-overflow-scrolling: touch !important;
-    touch-action: pan-x pan-y !important;
-    scroll-behavior: smooth !important;
+    touch-action: pan-x pan-y pinch-zoom !important;
+    scroll-behavior: auto !important;
   }
 
   .drive-pdf-scroll-area .react-pdf__Document {

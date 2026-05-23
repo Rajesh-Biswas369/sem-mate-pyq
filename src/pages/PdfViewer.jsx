@@ -297,6 +297,8 @@ function PdfViewer() {
   const lastEraserPointRef = useRef(null);
   const twoFingerScrollRef = useRef(false);
   const lastTwoFingerYRef = useRef(0);
+  const pinchZoomRef = useRef(null);
+  const panDragRef = useRef(null);
 
   const isMobile = viewportWidth <= 768;
   const shouldUseVirtualPages = isMobile || (numPages || 0) > DESKTOP_PAGE_RENDER_LIMIT;
@@ -392,24 +394,38 @@ function PdfViewer() {
     }
   };
 
-  const adjustZoom = (amount) => {
+  const setZoomAroundPoint = (nextScaleFactory, anchorClientX, anchorClientY) => {
     const container = scrollContainerRef.current;
-    const centerRatio = container
-      ? (container.scrollLeft + container.clientWidth / 2) / Math.max(container.scrollWidth, 1)
-      : 0.5;
+    const rect = container?.getBoundingClientRect();
+    const anchorX = container && rect ? anchorClientX - rect.left : 0;
+    const anchorY = container && rect ? anchorClientY - rect.top : 0;
+    const startScrollLeft = container?.scrollLeft || 0;
+    const startScrollTop = container?.scrollTop || 0;
 
     setScale((currentScale) => {
-      const nextScale = clamp(Number((currentScale + amount).toFixed(2)), MIN_ZOOM, MAX_ZOOM);
-      window.setTimeout(() => {
+      const rawNextScale =
+        typeof nextScaleFactory === "function" ? nextScaleFactory(currentScale) : nextScaleFactory;
+      const nextScale = clamp(Number(rawNextScale.toFixed(3)), MIN_ZOOM, MAX_ZOOM);
+      const zoomRatio = nextScale / Math.max(currentScale, 0.01);
+
+      window.requestAnimationFrame(() => {
         const nextContainer = scrollContainerRef.current;
         if (!nextContainer) return;
-        nextContainer.scrollLeft = Math.max(
-          0,
-          nextContainer.scrollWidth * centerRatio - nextContainer.clientWidth / 2
-        );
-      }, 80);
+        nextContainer.scrollLeft = Math.max(0, (startScrollLeft + anchorX) * zoomRatio - anchorX);
+        nextContainer.scrollTop = Math.max(0, (startScrollTop + anchorY) * zoomRatio - anchorY);
+      });
+
       return nextScale;
     });
+  };
+
+  const adjustZoom = (amount) => {
+    const container = scrollContainerRef.current;
+    const rect = container?.getBoundingClientRect();
+    const anchorX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+    const anchorY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+
+    setZoomAroundPoint((currentScale) => currentScale + amount, anchorX, anchorY);
   };
 
   const setToolAndOpen = (tool) => {
@@ -1036,6 +1052,125 @@ function PdfViewer() {
     return total / touches.length;
   };
 
+  const getTouchCenter = (touches) => {
+    if (!touches?.length) return { x: 0, y: 0 };
+
+    let totalX = 0;
+    let totalY = 0;
+    for (let index = 0; index < touches.length; index += 1) {
+      totalX += touches[index].clientX;
+      totalY += touches[index].clientY;
+    }
+
+    return {
+      x: totalX / touches.length,
+      y: totalY / touches.length,
+    };
+  };
+
+  const getTouchDistance = (touches) => {
+    if (!touches || touches.length < 2) return 0;
+
+    return Math.hypot(
+      touches[0].clientX - touches[1].clientX,
+      touches[0].clientY - touches[1].clientY
+    );
+  };
+
+  const handlePdfWheel = (event) => {
+    if (!event.ctrlKey && !event.metaKey) return;
+
+    event.preventDefault();
+    const zoomMultiplier = Math.exp(-event.deltaY * 0.0025);
+    setZoomAroundPoint((currentScale) => currentScale * zoomMultiplier, event.clientX, event.clientY);
+  };
+
+  const handlePdfTouchStart = (event) => {
+    if (event.touches.length < 2) return;
+
+    event.preventDefault();
+    const distance = getTouchDistance(event.touches);
+    if (!distance) return;
+
+    pinchZoomRef.current = {
+      startDistance: distance,
+      startScale: scale,
+      lastCenter: getTouchCenter(event.touches),
+    };
+
+    twoFingerScrollRef.current = true;
+    cancelActiveAnnotationDrafts();
+  };
+
+  const handlePdfTouchMove = (event) => {
+    const pinchState = pinchZoomRef.current;
+    if (!pinchState || event.touches.length < 2) return;
+
+    event.preventDefault();
+    const container = scrollContainerRef.current;
+    const center = getTouchCenter(event.touches);
+
+    if (container && pinchState.lastCenter) {
+      container.scrollLeft += pinchState.lastCenter.x - center.x;
+      container.scrollTop += pinchState.lastCenter.y - center.y;
+    }
+
+    const nextDistance = getTouchDistance(event.touches);
+    if (nextDistance) {
+      const nextScale = pinchState.startScale * (nextDistance / pinchState.startDistance);
+      setZoomAroundPoint(() => nextScale, center.x, center.y);
+    }
+
+    pinchZoomRef.current = {
+      ...pinchState,
+      lastCenter: center,
+    };
+  };
+
+  const handlePdfTouchEnd = (event) => {
+    if (event.touches.length >= 2) return;
+
+    pinchZoomRef.current = null;
+    twoFingerScrollRef.current = false;
+    lastTwoFingerYRef.current = 0;
+  };
+
+  const handlePdfPointerDown = (event) => {
+    const container = scrollContainerRef.current;
+    if (!container || event.button !== 0 || event.pointerType !== "mouse") return;
+    if (viewerMode === "edit" && editTool) return;
+    if (event.target.closest("button, input, textarea, select, a, .annotation-item, .dock-radial-panel")) return;
+    if (container.scrollWidth <= container.clientWidth && container.scrollHeight <= container.clientHeight) return;
+
+    panDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      scrollLeft: container.scrollLeft,
+      scrollTop: container.scrollTop,
+    };
+    container.setPointerCapture?.(event.pointerId);
+  };
+
+  const handlePdfPointerMove = (event) => {
+    const panState = panDragRef.current;
+    const container = scrollContainerRef.current;
+    if (!panState || !container || panState.pointerId !== event.pointerId) return;
+
+    event.preventDefault();
+    container.scrollLeft = panState.scrollLeft - (event.clientX - panState.startX);
+    container.scrollTop = panState.scrollTop - (event.clientY - panState.startY);
+  };
+
+  const handlePdfPointerUp = (event) => {
+    const panState = panDragRef.current;
+    const container = scrollContainerRef.current;
+    if (!panState || panState.pointerId !== event.pointerId) return;
+
+    container?.releasePointerCapture?.(event.pointerId);
+    panDragRef.current = null;
+  };
+
   const cancelActiveAnnotationDrafts = () => {
     setDraftRect(null);
     setDraftPath(null);
@@ -1044,7 +1179,7 @@ function PdfViewer() {
   };
 
   const handleAnnotationTouchStart = (event) => {
-    // Mobile edit mode: one finger annotates, two fingers scroll the PDF.
+    // Mobile edit mode: one finger annotates, two fingers pinch or pan the PDF.
     if (!isMobile || !editTool || viewerMode !== "edit" || !canEdit) return;
 
     if (event.touches.length >= 2) {
@@ -1060,14 +1195,6 @@ function PdfViewer() {
 
     if (event.touches.length >= 2) {
       event.preventDefault();
-
-      const nextY = getAverageTouchY(event.touches);
-      const deltaY = lastTwoFingerYRef.current - nextY;
-      lastTwoFingerYRef.current = nextY;
-
-      if (scrollContainerRef.current) {
-        scrollContainerRef.current.scrollTop += deltaY;
-      }
     }
   };
 
@@ -1744,9 +1871,20 @@ function PdfViewer() {
       )}
 
       <main
-        className="pdf-stage pdf-scroll-area custom-hide-scrollbar drive-pdf-scroll-area"
+        className={`pdf-stage pdf-scroll-area custom-hide-scrollbar drive-pdf-scroll-area ${
+          viewerMode === "edit" && editTool ? "is-annotating" : "is-pannable"
+        }`}
         ref={scrollContainerRef}
         onScroll={handleScroll}
+        onWheel={handlePdfWheel}
+        onTouchStart={handlePdfTouchStart}
+        onTouchMove={handlePdfTouchMove}
+        onTouchEnd={handlePdfTouchEnd}
+        onTouchCancel={handlePdfTouchEnd}
+        onPointerDown={handlePdfPointerDown}
+        onPointerMove={handlePdfPointerMove}
+        onPointerUp={handlePdfPointerUp}
+        onPointerCancel={handlePdfPointerUp}
       >
         {protectedPdfError ? (
           <div className="empty-box">
