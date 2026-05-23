@@ -3319,6 +3319,13 @@ a {
   scroll-margin: 14px;
 }
 
+.pdf-page-zoom-shell {
+  position: relative;
+  transform-origin: top center;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
 .annotation-color-row button {
   width: 34px;
   height: 34px;

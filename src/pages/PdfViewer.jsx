@@ -643,12 +643,16 @@ function PdfViewer() {
     return () => unsubscribe();
   }, [annotationCollectionRef, user, hasAccess]);
 
-  const pageWidth = useMemo(() => {
+  const renderPageWidth = useMemo(() => {
     const sideGap = isMobile ? 10 : 44;
     const desktopReadableWidth = Math.min(Math.max(viewportWidth * 0.78, 980), 1180);
     const maxBaseWidth = isMobile ? viewportWidth - sideGap : desktopReadableWidth;
-    return Math.max(330, Math.round(maxBaseWidth * scale));
-  }, [isMobile, scale, viewportWidth]);
+    return Math.max(330, Math.round(maxBaseWidth));
+  }, [isMobile, viewportWidth]);
+
+  const pageWidth = useMemo(() => {
+    return Math.round(renderPageWidth * scale);
+  }, [renderPageWidth, scale]);
 
   const estimatedPageHeight = useMemo(() => {
     return Math.round(pageWidth * 1.414);
@@ -660,18 +664,17 @@ function PdfViewer() {
     const screenDpr = window.devicePixelRatio || 1;
 
     if (hdMode) {
-      const zoomBoost = scale >= 2 ? 0.35 : 0;
       const baseDpr = isMobile
         ? Math.max(screenDpr, MIN_MOBILE_DPR)
         : Math.max(screenDpr, MIN_DESKTOP_DPR);
 
       return isMobile
-        ? Math.min(baseDpr + zoomBoost, MAX_MOBILE_DPR)
-        : Math.min(baseDpr + zoomBoost, MAX_DESKTOP_DPR);
+        ? Math.min(baseDpr + 0.45, MAX_MOBILE_DPR)
+        : Math.min(baseDpr + 0.65, MAX_DESKTOP_DPR);
     }
 
     return isMobile ? Math.min(Math.max(screenDpr, 1.35), 1.75) : Math.min(Math.max(screenDpr, 1.5), 2);
-  }, [hdMode, isMobile, scale]);
+  }, [hdMode, isMobile]);
 
   useEffect(() => {
     if (!numPages || !scrollContainerRef.current || !hasAccess) return;
@@ -701,7 +704,7 @@ function PdfViewer() {
     });
 
     return () => observer.disconnect();
-  }, [numPages, pageWidth, hasAccess]);
+  }, [numPages, renderPageWidth, hasAccess]);
 
   const revealDriveScrollbar = () => {
     if (!driveScrollVisibleRef.current) {
@@ -1927,12 +1930,19 @@ function PdfViewer() {
                   style={{ minHeight: estimatedPageHeight, width: pageWidth }}
                 >
                   {renderThisPage ? (
-                    <>
+                    <div
+                      className="pdf-page-zoom-shell"
+                      style={{
+                        width: renderPageWidth,
+                        height: Math.round(renderPageWidth * 1.414),
+                        transform: `scale(${scale})`,
+                      }}
+                    >
                       <Page
-                        key={`${pageNumber}-${pageWidth}-${devicePixelRatio}-${hdMode ? "ultra" : "fast"}`}
+                        key={`${pageNumber}-${renderPageWidth}-${devicePixelRatio}-${hdMode ? "ultra" : "fast"}`}
                         className="crystal-pdf-page"
                         pageNumber={pageNumber}
-                        width={pageWidth}
+                        width={renderPageWidth}
                         renderMode="canvas"
                         renderTextLayer={false}
                         renderAnnotationLayer={false}
@@ -1940,7 +1950,7 @@ function PdfViewer() {
                         loading={<div className="pdf-page-loading">Loading page {pageNumber}...</div>}
                       />
                       {renderAnnotationLayer(pageNumber)}
-                    </>
+                    </div>
                   ) : (
                     <div className="pdf-placeholder-content">Page {pageNumber}</div>
                   )}
