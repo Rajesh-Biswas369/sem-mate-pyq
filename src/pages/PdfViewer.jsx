@@ -39,6 +39,10 @@ const MIN_PEN_SIZE = 0.18;
 const MAX_PEN_SIZE = 1.6;
 const DEFAULT_PEN_SIZE = 0.45;
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "https://sem-mate-pyq.onrender.com").replace(/\/$/, "");
+const IS_LOCAL_DEV =
+  import.meta.env.DEV &&
+  typeof window !== "undefined" &&
+  ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
 const ANNOTATION_COLORS = [
   { name: "Yellow", value: "#facc15" },
@@ -269,6 +273,7 @@ function PdfViewer() {
 
   const [viewerMode, setViewerMode] = useState("view");
   const [editTool, setEditTool] = useState("");
+  const [toolDockOpen, setToolDockOpen] = useState(false);
   const [annotationColor, setAnnotationColor] = useState(ANNOTATION_COLORS[0].value);
   const [penSize, setPenSize] = useState(DEFAULT_PEN_SIZE);
   const [penMode, setPenMode] = useState("curve");
@@ -377,6 +382,42 @@ function PdfViewer() {
         (currentAccessType !== "pyq" && hasPaidDirect(currentAccessType)))
   );
   const documentFile = protectedPdfUrl || (!subjectRequiresPayment && !user ? fileUrl : "");
+
+  const goToPage = (nextPage) => {
+    const safePage = clamp(nextPage, 1, numPages || 1);
+    const target = pageRefs.current[safePage - 1];
+
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start", inline: "center" });
+      setCurrentPage(safePage);
+    }
+  };
+
+  const adjustZoom = (amount) => {
+    const container = scrollContainerRef.current;
+    const centerRatio = container
+      ? (container.scrollLeft + container.clientWidth / 2) / Math.max(container.scrollWidth, 1)
+      : 0.5;
+
+    setScale((currentScale) => {
+      const nextScale = clamp(Number((currentScale + amount).toFixed(2)), MIN_ZOOM, MAX_ZOOM);
+      window.setTimeout(() => {
+        const nextContainer = scrollContainerRef.current;
+        if (!nextContainer) return;
+        nextContainer.scrollLeft = Math.max(
+          0,
+          nextContainer.scrollWidth * centerRatio - nextContainer.clientWidth / 2
+        );
+      }, 80);
+      return nextScale;
+    });
+  };
+
+  const setToolAndOpen = (tool) => {
+    setViewerMode("edit");
+    setEditTool((currentTool) => (currentTool === tool ? "" : tool));
+    setToolDockOpen(true);
+  };
 
   const eraserRadius = useMemo(() => {
     // Uses the same range as the pen-size slider, but a slightly wider
@@ -501,6 +542,12 @@ function PdfViewer() {
         if (!cancelled) setProtectedPdfUrl(objectUrl);
       } catch (error) {
         if (!cancelled) {
+          if (IS_LOCAL_DEV) {
+            setProtectedPdfUrl(fileUrl);
+            setProtectedPdfError("");
+            return;
+          }
+
           setProtectedPdfError(error.message || "Could not load protected PDF.");
         }
       }
@@ -1036,6 +1083,7 @@ function PdfViewer() {
 
   const handleOverlayPointerDown = (event, pageNumber) => {
     if (!canEdit || viewerMode !== "edit" || !editTool || twoFingerScrollRef.current) return;
+    if (event.pointerType === "touch" && event.isPrimary === false) return;
     if (event.button !== 0) return;
     if (editTool !== "eraser" && event.target.closest(".annotation-item")) return;
 
@@ -1505,7 +1553,7 @@ function PdfViewer() {
         <div className="zoom-controls">
           <button
             className="tiny-action"
-            onClick={() => setScale((currentScale) => Math.max(MIN_ZOOM, Number((currentScale - 0.2).toFixed(2))))}
+            onClick={() => adjustZoom(-0.2)}
             aria-label="Zoom out"
           >
             −
@@ -1513,7 +1561,7 @@ function PdfViewer() {
           <span className="zoom-text">{Math.round(scale * 100)}%</span>
           <button
             className="tiny-action"
-            onClick={() => setScale((currentScale) => Math.min(MAX_ZOOM, Number((currentScale + 0.2).toFixed(2))))}
+            onClick={() => adjustZoom(0.2)}
             aria-label="Zoom in"
           >
             +
@@ -1530,7 +1578,7 @@ function PdfViewer() {
       </div>
 
       {viewerMode === "edit" && canEdit && (
-        <div className="annotation-toolbar">
+        <div className="annotation-toolbar desktop-annotation-toolbar">
           <div className="annotation-tool-group">
             {[
               ["highlight", "Highlight"],
@@ -1582,7 +1630,7 @@ function PdfViewer() {
                 key={color.value}
                 type="button"
                 className={annotationColor === color.value ? "selected" : ""}
-                style={{ backgroundColor: color.value }}
+                style={{ "--swatch": color.value }}
                 onClick={() => setAnnotationColor(color.value)}
                 aria-label={color.name}
                 title={color.name}
@@ -1638,6 +1686,60 @@ function PdfViewer() {
       {annotationMessage && (
         <div className="annotation-message">
           {annotationMessage}
+        </div>
+      )}
+
+      {viewerMode === "edit" && canEdit && (
+        <div className={`floating-edit-dock ${toolDockOpen ? "open" : ""}`}>
+          <button
+            type="button"
+            className="dock-main-button"
+            onClick={() => setToolDockOpen((current) => !current)}
+            aria-label="Edit tools"
+            title="Edit tools"
+          >
+            {editTool === "eraser" ? "\u232B" : editTool === "highlight" ? "H" : "\u270E"}
+          </button>
+
+          <div className="dock-radial-panel" aria-label="Floating edit controls">
+            <button type="button" className={editTool === "highlight" ? "active" : ""} onClick={() => setToolAndOpen("highlight")} title="Highlighter">H</button>
+            <button type="button" className={editTool === "pen" ? "active" : ""} onClick={() => setToolAndOpen("pen")} title="Pen">&#9998;</button>
+            <button type="button" className={editTool === "eraser" ? "active" : ""} onClick={() => setToolAndOpen("eraser")} title="Eraser">&#9003;</button>
+            <button type="button" className={editTool === "text" ? "active" : ""} onClick={() => setToolAndOpen("text")} title="Note">T</button>
+            <button type="button" onClick={() => goToPage(currentPage - 1)} title="Previous page">&#8593;</button>
+            <button type="button" onClick={() => goToPage(currentPage + 1)} title="Next page">&#8595;</button>
+            <button type="button" onClick={() => adjustZoom(-0.2)} title="Zoom out">-</button>
+            <button type="button" onClick={() => adjustZoom(0.2)} title="Zoom in">+</button>
+
+            <div className="dock-pen-options">
+              <button type="button" className={penMode === "curve" ? "active" : ""} onClick={() => setPenMode("curve")} title="Curve pen">~</button>
+              <button type="button" className={penMode === "line" ? "active" : ""} onClick={() => setPenMode("line")} title="Straight line">/</button>
+              <label className="dock-size-slider" title={editTool === "eraser" ? "Eraser size" : "Pen size"}>
+                <input
+                  type="range"
+                  min={MIN_PEN_SIZE}
+                  max={MAX_PEN_SIZE}
+                  step="0.02"
+                  value={penSize}
+                  onChange={(event) => setPenSize(Number(event.target.value))}
+                />
+              </label>
+            </div>
+
+            <div className="dock-color-wheel">
+              {ANNOTATION_COLORS.map((color) => (
+                <button
+                  key={color.value}
+                  type="button"
+                  className={annotationColor === color.value ? "selected" : ""}
+                  style={{ "--swatch": color.value }}
+                  onClick={() => setAnnotationColor(color.value)}
+                  aria-label={color.name}
+                  title={color.name}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

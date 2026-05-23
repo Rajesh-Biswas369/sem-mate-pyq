@@ -3277,3 +3277,327 @@ a {
     height: 22px;
   }
 }
+
+/* =========================================
+   PDF VIEWER COMPACT MOBILE REDESIGN
+========================================= */
+.floating-edit-dock {
+  display: none;
+}
+
+.drive-pdf-scroll-area {
+  touch-action: pan-x pan-y;
+  scroll-padding: 18px;
+}
+
+.drive-pdf-scroll-area .react-pdf__Document {
+  align-items: center;
+  padding-inline: 18px;
+}
+
+.drive-pdf-page {
+  scroll-margin: 14px;
+}
+
+.annotation-color-row button {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.72);
+  background: var(--swatch, #facc15) !important;
+  color: transparent;
+  box-shadow:
+    0 0 0 2px rgba(15, 23, 42, 0.8),
+    0 6px 14px rgba(0, 0, 0, 0.25);
+}
+
+.annotation-color-row button.selected {
+  border-color: #0f172a;
+  box-shadow:
+    0 0 0 4px #facc15,
+    0 8px 20px rgba(250, 204, 21, 0.28);
+}
+
+@media (max-width: 768px) {
+  .drive-pdf-viewer {
+    padding: 4px 0 0 !important;
+    overflow: hidden !important;
+  }
+
+  .pdf-nav-smart {
+    position: sticky !important;
+    top: 4px !important;
+    z-index: 90 !important;
+    width: calc(100% - 8px) !important;
+    margin: 0 4px 6px !important;
+    padding: 6px !important;
+    display: grid !important;
+    grid-template-columns: auto 1fr auto !important;
+    grid-template-areas:
+      "left modes zoom"
+      "read read read" !important;
+    gap: 6px !important;
+    border-radius: 18px !important;
+  }
+
+  .pdf-nav-smart .nav-left {
+    grid-area: left !important;
+    min-width: 0 !important;
+    gap: 4px !important;
+  }
+
+  .pdf-nav-smart .pdf-header-title {
+    display: none !important;
+  }
+
+  .pdf-nav-smart .viewer-mode-toggle {
+    grid-area: modes !important;
+    width: 100% !important;
+    min-height: 38px !important;
+    padding: 3px !important;
+    border-radius: 999px !important;
+  }
+
+  .pdf-nav-smart .viewer-mode-toggle button {
+    min-height: 32px !important;
+    padding: 6px 10px !important;
+    border-radius: 999px !important;
+    font-size: 12px !important;
+  }
+
+  .pdf-nav-smart .zoom-controls {
+    grid-area: zoom !important;
+    flex: 0 0 auto !important;
+    gap: 3px !important;
+    padding: 3px !important;
+    border-radius: 999px !important;
+  }
+
+  .pdf-nav-smart .reading-mode-toggle {
+    grid-area: read !important;
+    width: 100% !important;
+    padding: 3px !important;
+    border-radius: 999px !important;
+  }
+
+  .pdf-nav-smart .reading-mode-toggle button {
+    min-height: 30px !important;
+    padding: 5px 6px !important;
+    font-size: 11px !important;
+    border-radius: 999px !important;
+  }
+
+  .pdf-nav-smart .tiny-action {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    font-size: 15px !important;
+  }
+
+  .pdf-nav-smart .page-counter {
+    padding: 7px 9px !important;
+    font-size: 12px !important;
+  }
+
+  .pdf-nav-smart .zoom-text {
+    min-width: 32px !important;
+    font-size: 10px !important;
+  }
+
+  .pdf-nav-smart .tiny-action[title*="ultra"],
+  .pdf-nav-smart .tiny-action[title*="faster"] {
+    min-width: 48px !important;
+    padding-inline: 7px !important;
+    font-size: 10px !important;
+  }
+
+  .desktop-annotation-toolbar {
+    display: none !important;
+  }
+
+  .drive-pdf-scroll-area {
+    width: 100% !important;
+    height: calc(100dvh - 94px) !important;
+    padding: 8px 0 112px !important;
+    overflow: auto !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-x pan-y !important;
+    scroll-behavior: smooth !important;
+  }
+
+  .drive-pdf-scroll-area .react-pdf__Document {
+    width: max-content !important;
+    min-width: 100% !important;
+    align-items: center !important;
+    margin: 0 !important;
+    padding-inline: max(14px, calc((100vw - 390px) / 2)) !important;
+  }
+
+  .drive-pdf-page {
+    margin: 0 auto 16px !important;
+    border-radius: 7px !important;
+  }
+
+  .annotation-layer.editable.tool-active {
+    touch-action: pan-x pan-y !important;
+  }
+
+  .floating-edit-dock {
+    position: fixed;
+    right: 14px;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    z-index: 120;
+    display: block;
+    width: 64px;
+    height: 64px;
+  }
+
+  .dock-main-button,
+  .dock-radial-panel button {
+    border: 1px solid rgba(250, 204, 21, 0.4);
+    background: linear-gradient(135deg, #fff4a8, #facc15, #f59e0b);
+    color: #07111f;
+    font-weight: 950;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+  }
+
+  .dock-main-button {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 62px;
+    height: 62px;
+    border-radius: 999px;
+    font-size: 24px;
+    z-index: 3;
+  }
+
+  .dock-radial-panel {
+    position: absolute;
+    right: 0;
+    bottom: 72px;
+    width: 216px;
+    min-height: 216px;
+    padding: 12px;
+    border-radius: 28px;
+    display: grid;
+    grid-template-columns: repeat(4, 42px);
+    grid-auto-rows: 42px;
+    gap: 8px;
+    justify-content: center;
+    background: rgba(2, 6, 23, 0.9);
+    border: 1px solid rgba(250, 204, 21, 0.22);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.46);
+    transform: translateY(14px) scale(0.86);
+    transform-origin: bottom right;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms ease, transform 160ms ease;
+    backdrop-filter: blur(16px);
+  }
+
+  .floating-edit-dock.open .dock-radial-panel {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+  }
+
+  .dock-radial-panel button {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    padding: 0;
+    border-radius: 999px;
+    font-size: 16px;
+  }
+
+  .dock-radial-panel button.active {
+    background: #f8fafc;
+    color: #0f172a;
+    box-shadow:
+      0 0 0 3px rgba(250, 204, 21, 0.92),
+      0 10px 24px rgba(250, 204, 21, 0.22);
+  }
+
+  .dock-color-wheel {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 7px;
+    justify-content: center;
+    align-items: center;
+    padding-top: 4px;
+  }
+
+  .dock-color-wheel button {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: var(--swatch) !important;
+    border: 2px solid rgba(255, 255, 255, 0.78);
+    box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.85);
+  }
+
+  .dock-color-wheel button.selected {
+    border-color: #0f172a;
+    box-shadow:
+      0 0 0 4px #facc15,
+      0 0 18px rgba(250, 204, 21, 0.4);
+  }
+
+  .dock-pen-options {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 42px 42px 1fr;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .dock-size-slider {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    height: 42px;
+    padding: 0 9px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(250, 204, 21, 0.24);
+  }
+
+  .dock-size-slider input {
+    width: 100%;
+    accent-color: #facc15;
+  }
+}
+
+@media (max-width: 430px) {
+  .pdf-nav-smart {
+    grid-template-columns: auto 1fr !important;
+    grid-template-areas:
+      "left modes"
+      "zoom zoom"
+      "read read" !important;
+  }
+
+  .pdf-nav-smart .zoom-controls {
+    justify-content: center !important;
+  }
+
+  .dock-radial-panel {
+    right: -2px;
+    width: 204px;
+    grid-template-columns: repeat(4, 39px);
+    gap: 7px;
+  }
+
+  .dock-radial-panel button {
+    width: 39px;
+    min-width: 39px;
+    height: 39px;
+  }
+}
