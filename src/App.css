@@ -3634,3 +3634,28 @@ a {
     height: 39px;
   }
 }
+
+/* Keep the existing PDF viewer pages visually centered at every zoom level. */
+.drive-pdf-scroll-area {
+  display: block !important;
+  text-align: center;
+}
+
+.drive-pdf-scroll-area .react-pdf__Document {
+  display: inline-flex !important;
+  flex-direction: column;
+  align-items: center !important;
+  width: auto !important;
+  min-width: 100% !important;
+  max-width: none !important;
+  margin: 0 auto !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  box-sizing: border-box;
+  text-align: initial;
+}
+
+.drive-pdf-page {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
