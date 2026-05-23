@@ -3444,6 +3444,12 @@ a {
   }
 
   .annotation-layer.editable.tool-active {
+    touch-action: none !important;
+  }
+
+  .annotation-layer.editable.tool-none,
+  .annotation-layer.view-only {
+    pointer-events: none !important;
     touch-action: pan-x pan-y !important;
   }
 

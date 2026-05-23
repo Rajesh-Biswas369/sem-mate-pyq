@@ -40,7 +40,6 @@ const MAX_PEN_SIZE = 1.6;
 const DEFAULT_PEN_SIZE = 0.45;
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "https://sem-mate-pyq.onrender.com").replace(/\/$/, "");
 const IS_LOCAL_DEV =
-  import.meta.env.DEV &&
   typeof window !== "undefined" &&
   ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
@@ -1702,6 +1701,7 @@ function PdfViewer() {
           </button>
 
           <div className="dock-radial-panel" aria-label="Floating edit controls">
+            <button type="button" className={!editTool ? "active" : ""} onClick={() => setEditTool("")} title="Scroll mode">&#8597;</button>
             <button type="button" className={editTool === "highlight" ? "active" : ""} onClick={() => setToolAndOpen("highlight")} title="Highlighter">H</button>
             <button type="button" className={editTool === "pen" ? "active" : ""} onClick={() => setToolAndOpen("pen")} title="Pen">&#9998;</button>
             <button type="button" className={editTool === "eraser" ? "active" : ""} onClick={() => setToolAndOpen("eraser")} title="Eraser">&#9003;</button>
