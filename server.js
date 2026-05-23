@@ -14,6 +14,12 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PUBLIC_DIR = path.join(__dirname, "public");
+const DIST_DIR = path.join(__dirname, "dist");
+const PDF_ROOTS = [
+  process.env.SEM_MATE_PDF_ROOT,
+  PUBLIC_DIR,
+  DIST_DIR,
+].filter(Boolean);
 const FIREBASE_PROJECT_ID =
   process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "sem-mate";
 
@@ -181,6 +187,46 @@ function normalizePdfUrl(fileUrl = "") {
   return normalized;
 }
 
+function resolveCaseInsensitivePath(rootDir, relativePath) {
+  const root = path.resolve(rootDir);
+  const segments = relativePath.split(/[\\/]+/).filter(Boolean);
+  let currentPath = root;
+
+  for (const segment of segments) {
+    if (!fs.existsSync(currentPath)) return "";
+
+    const entries = fs.readdirSync(currentPath);
+    const exactMatch = entries.find((entry) => entry === segment);
+    const looseMatch =
+      exactMatch || entries.find((entry) => entry.toLowerCase() === segment.toLowerCase());
+
+    if (!looseMatch) return "";
+    currentPath = path.join(currentPath, looseMatch);
+  }
+
+  const resolved = path.resolve(currentPath);
+  return resolved.startsWith(root) && fs.existsSync(resolved) ? resolved : "";
+}
+
+function findPdfPath(fileUrl = "") {
+  const normalizedUrl = normalizePdfUrl(fileUrl);
+  const relativePath = normalizedUrl.replace(/^\/+/, "");
+
+  for (const rootDir of PDF_ROOTS) {
+    const root = path.resolve(rootDir);
+    const exactPath = path.resolve(root, relativePath);
+
+    if (exactPath.startsWith(root) && fs.existsSync(exactPath)) {
+      return exactPath;
+    }
+
+    const loosePath = resolveCaseInsensitivePath(root, relativePath);
+    if (loosePath) return loosePath;
+  }
+
+  return "";
+}
+
 function getPdfContext(fileUrl = "") {
   const parts = normalizePdfUrl(fileUrl).split("/").filter(Boolean);
   const subjectFolder = parts[1] || "";
@@ -214,6 +260,18 @@ app.get("/", (req, res) => {
 
 app.get("/api/health", (req, res) => {
   res.json({ success: true, message: "SEM-MATE payment server is live." });
+});
+
+app.get("/api/pdf-health", (req, res) => {
+  const samplePdf = "/Sem4/Electrical Machines/PYQs/22-Electrical Machines II.pdf";
+  const resolvedPath = findPdfPath(samplePdf);
+
+  res.json({
+    success: Boolean(resolvedPath),
+    message: resolvedPath ? "PDF root is readable." : "PDF root is missing on this backend.",
+    samplePdf,
+    checkedRoots: PDF_ROOTS,
+  });
 });
 
 app.post("/api/create-order", async (req, res) => {
@@ -447,9 +505,16 @@ app.post("/api/protected-pdf", async (req, res) => {
       return res.status(403).json({ success: false, message: "PDF access denied." });
     }
 
-    const absolutePath = path.resolve(PUBLIC_DIR, fileUrl.replace(/^\/+/, ""));
-    if (!absolutePath.startsWith(PUBLIC_DIR) || !fs.existsSync(absolutePath)) {
-      return res.status(404).json({ success: false, message: "PDF not found." });
+    const absolutePath = findPdfPath(fileUrl);
+    if (!absolutePath) {
+      console.error("Protected PDF missing on backend:", {
+        fileUrl,
+        checkedRoots: PDF_ROOTS,
+      });
+      return res.status(404).json({
+        success: false,
+        message: "PDF not found on backend. Deploy the PDF files with the Render backend.",
+      });
     }
 
     res.setHeader("Content-Type", "application/pdf");
