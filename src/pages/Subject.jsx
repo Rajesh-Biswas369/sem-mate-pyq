@@ -281,7 +281,7 @@ function Subject() {
 
     const data = await response.json();
     if (!response.ok || !data.success) {
-      throw new Error(data.message || "Could not create secure access.");
+      throw new Error(data.message || `Could not create secure access (${response.status}).`);
     }
 
     return data.accessGrant;

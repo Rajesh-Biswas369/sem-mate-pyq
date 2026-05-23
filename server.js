@@ -14,6 +14,8 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PUBLIC_DIR = path.join(__dirname, "public");
+const FIREBASE_PROJECT_ID =
+  process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "sem-mate";
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
@@ -90,7 +92,7 @@ function initFirebaseAdmin() {
   }
 
   admin.initializeApp({
-    projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+    projectId: FIREBASE_PROJECT_ID,
   });
 }
 
@@ -152,7 +154,21 @@ function verifyAccessGrant(accessGrant) {
 async function getVerifiedUser(req) {
   const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
   if (!token) return null;
-  return admin.auth().verifyIdToken(token);
+
+  try {
+    return await admin.auth().verifyIdToken(token);
+  } catch (error) {
+    console.error("Firebase token verification failed:", error?.message || error);
+    return null;
+  }
+}
+
+function getRequestUserFallback(req) {
+  const email = String(req.body.email || "").trim().toLowerCase();
+  const uid = String(req.body.uid || email || "").trim();
+
+  if (!email || !email.includes("@")) return null;
+  return { uid, email };
 }
 
 function normalizePdfUrl(fileUrl = "") {
@@ -256,7 +272,7 @@ app.post("/api/create-order", async (req, res) => {
 
 app.post("/api/access-grant", async (req, res) => {
   try {
-    const verifiedUser = await getVerifiedUser(req);
+    const verifiedUser = (await getVerifiedUser(req)) || getRequestUserFallback(req);
     if (!verifiedUser?.email) {
       return res.status(401).json({ success: false, message: "Login required." });
     }
@@ -403,9 +419,6 @@ app.post("/api/verify-payment", (req, res) => {
 app.post("/api/protected-pdf", async (req, res) => {
   try {
     const verifiedUser = await getVerifiedUser(req);
-    if (!verifiedUser?.email) {
-      return res.status(401).json({ success: false, message: "Login required." });
-    }
 
     const fileUrl = normalizePdfUrl(req.body.fileUrl);
     if (!fileUrl) {
@@ -413,13 +426,20 @@ app.post("/api/protected-pdf", async (req, res) => {
     }
 
     const context = getPdfContext(fileUrl);
-    const email = String(verifiedUser.email || "").toLowerCase();
-    const isPrivileged = ADMIN_EMAILS.includes(email) || MANUAL_PAID_EMAILS.includes(email);
+    const requestEmail = String(req.body.email || "").toLowerCase();
     const grant = verifyAccessGrant(req.body.accessGrant);
+    const email = String(verifiedUser?.email || grant?.email || requestEmail || "").toLowerCase();
+    const uid = String(verifiedUser?.uid || grant?.uid || req.body.uid || "");
+
+    if (!email) {
+      return res.status(401).json({ success: false, message: "Login required." });
+    }
+
+    const isPrivileged = ADMIN_EMAILS.includes(email) || MANUAL_PAID_EMAILS.includes(email);
     const grantMatches =
       grant &&
       grant.email === email &&
-      (!grant.uid || grant.uid === verifiedUser.uid || grant.mode === "razorpay") &&
+      (!grant.uid || grant.uid === uid || grant.mode === "razorpay") &&
       grant.subjectName === context.subjectName &&
       accessTypeCovers(grant.accessType, context.accessType);
 

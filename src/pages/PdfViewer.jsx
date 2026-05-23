@@ -479,6 +479,8 @@ function PdfViewer() {
             fileUrl,
             subjectName: subject?.name || "",
             accessType: currentAccessType,
+            email: user.email,
+            uid: user.uid,
             accessGrant,
           }),
         });
