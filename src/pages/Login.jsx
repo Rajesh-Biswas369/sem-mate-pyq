@@ -1,18 +1,59 @@
-import { signInWithPopup } from "firebase/auth";
+import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../firebase";
 import { useNavigate, Link } from "react-router-dom";
 
 function Login() {
   const navigate = useNavigate();
 
+  function isCapacitorNative() {
+    const capacitor = window.Capacitor;
+    if (!capacitor) return false;
+    if (typeof capacitor.isNativePlatform === "function") return capacitor.isNativePlatform();
+    if (typeof capacitor.getPlatform === "function") return capacitor.getPlatform() !== "web";
+    return Boolean(capacitor.Plugins);
+  }
+
+  async function signInWithNativeGoogleIfAvailable() {
+    const googleAuth = window.Capacitor?.Plugins?.GoogleAuth;
+    if (!googleAuth?.signIn) return null;
+
+    const googleUser = await googleAuth.signIn();
+    const idToken =
+      googleUser?.authentication?.idToken ||
+      googleUser?.idToken ||
+      googleUser?.serverAuthCode;
+
+    if (!idToken) {
+      throw new Error("Google sign-in did not return an ID token.");
+    }
+
+    const credential = GoogleAuthProvider.credential(idToken);
+    return signInWithCredential(auth, credential);
+  }
+
   async function handleGoogleLogin() {
     try {
+      if (isCapacitorNative()) {
+        const nativeResult = await signInWithNativeGoogleIfAvailable();
+        if (nativeResult) {
+          navigate("/");
+          return;
+        }
+      }
+
+      googleProvider.setCustomParameters({ prompt: "select_account" });
       await signInWithPopup(auth, googleProvider);
       // Automatically redirect the user to the Home page after successful login!
       navigate("/"); 
     } catch (error) {
       console.error("Google login error:", error);
-      alert("Failed to log in: " + error.message);
+      const friendlyMessage =
+        error?.code === "auth/popup-closed-by-user"
+          ? "Google login was closed before it finished."
+          : isCapacitorNative()
+          ? "Google login failed inside the Android app. Rebuild the APK after syncing Capacitor, and install the native Google Auth plugin if popup login is still blocked."
+          : "Google login failed. Please try again.";
+      alert(`${friendlyMessage}\n\n${error?.message || ""}`.trim());
     }
   }
 

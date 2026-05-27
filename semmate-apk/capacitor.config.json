@@ -1,0 +1,9 @@
+﻿{
+  "appId": "com.semmate.app",
+  "appName": "Sem-Mate",
+  "webDir": "www",
+  "server": {
+    "url": "https://sem-mate-pyq.vercel.app",
+    "cleartext": false
+  }
+}
