@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../firebase";
 import { useNavigate, Link } from "react-router-dom";
@@ -6,39 +8,30 @@ function Login() {
   const navigate = useNavigate();
 
   function isCapacitorNative() {
-    const capacitor = window.Capacitor;
-    if (!capacitor) return false;
-    if (typeof capacitor.isNativePlatform === "function") return capacitor.isNativePlatform();
-    if (typeof capacitor.getPlatform === "function") return capacitor.getPlatform() !== "web";
-    return Boolean(capacitor.Plugins);
+    return Capacitor.isNativePlatform();
   }
 
-  async function signInWithNativeGoogleIfAvailable() {
-    const googleAuth = window.Capacitor?.Plugins?.GoogleAuth;
-    if (!googleAuth?.signIn) return null;
+  async function signInWithNativeGoogle() {
+    const result = await FirebaseAuthentication.signInWithGoogle({
+      skipNativeAuth: true,
+    });
 
-    const googleUser = await googleAuth.signIn();
-    const idToken =
-      googleUser?.authentication?.idToken ||
-      googleUser?.idToken ||
-      googleUser?.serverAuthCode;
-
+    const idToken = result?.credential?.idToken;
+    const accessToken = result?.credential?.accessToken;
     if (!idToken) {
-      throw new Error("Google sign-in did not return an ID token.");
+      throw new Error("Google did not return an ID token. Check google-services.json, SHA-1, and Firebase Google provider setup.");
     }
 
-    const credential = GoogleAuthProvider.credential(idToken);
+    const credential = GoogleAuthProvider.credential(idToken, accessToken);
     return signInWithCredential(auth, credential);
   }
 
   async function handleGoogleLogin() {
     try {
       if (isCapacitorNative()) {
-        const nativeResult = await signInWithNativeGoogleIfAvailable();
-        if (nativeResult) {
-          navigate("/");
-          return;
-        }
+        await signInWithNativeGoogle();
+        navigate("/");
+        return;
       }
 
       googleProvider.setCustomParameters({ prompt: "select_account" });
@@ -51,7 +44,7 @@ function Login() {
         error?.code === "auth/popup-closed-by-user"
           ? "Google login was closed before it finished."
           : isCapacitorNative()
-          ? "Google login failed inside the Android app. Rebuild the APK after syncing Capacitor, and install the native Google Auth plugin if popup login is still blocked."
+          ? "Google login failed inside the Android app. Check google-services.json, SHA-1, package name com.semmate.app, and rebuild the APK after Capacitor sync."
           : "Google login failed. Please try again.";
       alert(`${friendlyMessage}\n\n${error?.message || ""}`.trim());
     }
